@@ -4,7 +4,7 @@ By Karl Zylinski, http://zylinski.se -- Support me at https://www.patreon.com/ka
 
 # What's this?
 
-This atlas builder looks into a 'textures' folder for pngs, ase and aseprite files and makes an atlas from those. It outputs both atlas.png and atlas.odin. The odin file you compile as part of your game. It contains metadata about where in the atlas the textures ended up.
+This atlas builder looks into a 'textures' folder for pngs, ase and aseprite files and makes an atlas from those. It outputs both `atlas.png` and `atlas.odin`. The odin file you compile as part of your game. It contains metadata about where in the atlas the textures ended up.
 
 Animated aseprite files are supported, they get their own metadata in `atlas.odin`.
 
