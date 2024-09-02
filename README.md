@@ -49,15 +49,17 @@ See the README.md in the `example` folder. But in short:
 
 There are a few constants at the top of `atlas_builder.odin`:
 
-- `ATLAS_SIZE`: Maximum size of `atlas.png` Note: The final atlas is cropped to the actual contents inside it, it may be smaller than `ATLAS_SIZE`. Remove the `rl.ImageAlphaCrop(&atlas, 0)` line in `atlas_builder.odin` if you do not what this cropping.
+- `ATLAS_SIZE`: Maximum size of `atlas.png`.
+- `ATLAS_PNG_OUTPUT_PATH`: Path to output the atlas PNG to
+- `ATLAS_ODIN_OUTPUT_PATH`: Path to output the atlas Odin metadata file to
+- `ATLAS_CROP`: If atlas should be cropped after generation. Default: true
 - `TILESET_WIDTH`: If you have any texture prefixed with `tileset_`, it will be treated as a tileset. This setting says how many tiles wide it is.
 - `TILESET_SIZE`: How many pixels each tile takes in the tileset
 - `PACKAGE_NAME`: The package name to use at the top of the `atlas.odin` file.
 - `TEXTURES_DIR`: The folder in which to look for textures to put into atlas.
 - `LETTERS_IN_FONT`: The letters to extract from the font.
 - `FONT_FILENAME`: The filename of the font to extract letters from.
-- `ATLAS_PNG_OUTPUT_PATH`: Path to output the atlas PNG to
-- `ATLAS_ODIN_OUTPUT_PATH`: Path to output the atlas Odin metadata file to
+- `FONT_SIZE`: The font size of letters extracted from font
 
 # Loading the atlas
 

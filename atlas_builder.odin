@@ -19,8 +19,15 @@ import rl "vendor:raylib"
 // Size of atlas in NxN pixels. Note: The outputted atlas PNG is cropped to the visible pixels.
 ATLAS_SIZE :: 512
 
+// Path to output final atlas PNG to
+ATLAS_PNG_OUTPUT_PATH :: "atlas.png"
+
+// Path to output atlas Odin metadata file to. Compile this as part of your game to get metadata
+// about where in atlas your textures etc are.
+ATLAS_ODIN_OUTPUT_PATH :: "atlas.odin"
+
 // Set to false to not crop atlas after generation.
-CROP_FINAL_ATLAS :: true
+ATLAS_CROP :: true
 
 // If you have a tileset (texture with tileset_) prefix, then this is says how many tiles wide it is
 TILESET_WIDTH :: 10
@@ -40,36 +47,8 @@ LETTERS_IN_FONT :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12345678
 // The font to extract letters from
 FONT_FILENAME :: "font.ttf"
 
-// Path to output final atlas PNG to
-ATLAS_PNG_OUTPUT_PATH :: "atlas.png"
-
-// Path to output atlas Odin metadata file to. Compile this as part of your game to get metadata
-// about where in atlas your textures etc are.
-ATLAS_ODIN_OUTPUT_PATH :: "atlas.odin"
-
-dir_path_to_file_infos :: proc(path: string) -> []os.File_Info {
-	d, derr := os.open(path, os.O_RDONLY)
-	if derr != nil {
-		fmt.printfln("No %s folder found", path)
-		return {}
-	}
-	defer os.close(d)
-
-	{
-		file_info, ferr := os.fstat(d)
-		defer os.file_info_delete(file_info)
-
-		if ferr != nil {
-			panic("stat failed")
-		}
-		if !file_info.is_dir {
-			panic("not a directory")
-		}
-	}
-
-	file_infos, _ := os.read_dir(d, -1)
-	return file_infos
-}
+// The font size of letters extracted from font
+FONT_SIZE :: 32
 
 Vec2i :: [2]int
 
@@ -413,6 +392,29 @@ main :: proc() {
 	textures: [dynamic]Texture_Data
 	animations: [dynamic]Animation
 
+	dir_path_to_file_infos :: proc(path: string) -> []os.File_Info {
+		d, derr := os.open(path, os.O_RDONLY)
+		if derr != nil {
+			fmt.panicf("No %s folder found", path)
+		}
+		defer os.close(d)
+
+		{
+			file_info, ferr := os.fstat(d)
+			defer os.file_info_delete(file_info)
+
+			if ferr != nil {
+				panic("stat failed")
+			}
+			if !file_info.is_dir {
+				panic("not a directory")
+			}
+		}
+
+		file_infos, _ := os.read_dir(d, -1)
+		return file_infos
+	}
+
 	file_infos := dir_path_to_file_infos(TEXTURES_DIR)
 
 	slice.sort_by(file_infos, proc(i, j: os.File_Info) -> bool {
@@ -442,7 +444,7 @@ main :: proc() {
 
 	letters := utf8.string_to_runes(LETTERS_IN_FONT)
 	num_letters := len(letters)
-	FONT_SIZE :: 8*4
+	
 
 	pack_rects: [dynamic]rect_pack.Rect
 	glyphs: [^]rl.GlyphInfo
@@ -742,7 +744,7 @@ main :: proc() {
 		}
 	}
 
-	if CROP_FINAL_ATLAS {
+	if ATLAS_CROP {
 		rl.ImageAlphaCrop(&atlas, 0)	
 	}
 
