@@ -185,7 +185,7 @@ main :: proc() {
 	font = load_atlased_font()
 
 	// Set the shapes drawing texture, this makes rl.DrawRectangleRec etc use the atlas
-	rl.SetShapesTexture(atlas, shapes_texture_rect)
+	rl.SetShapesTexture(atlas, SHAPES_TEXTURE_RECT)
 
 	for !rl.WindowShouldClose() {
 		update()
