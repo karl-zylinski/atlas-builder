@@ -4,6 +4,8 @@ By Karl Zylinski, http://zylinski.se -- Support me at https://www.patreon.com/ka
 
 This atlas builder looks into a 'textures' folder for pngs, ase and aseprite files and makes an atlas from those. It outputs both atlas.png and atlas.odin. The odin file you compile as part of your game. It contains metadata about where in the atlas the textures ended up.
 
+See the example folder for a sample program that generates and uses an atlas.
+
 Showcase & demo video: https://www.youtube.com/watch?v=u8Kt0Td76zI
 
 The atlas builder can also split up tilesets and fonts and splat those out into the atlas. It detects if a texture is a tileset by checking if the name starts with `tileset_`.
