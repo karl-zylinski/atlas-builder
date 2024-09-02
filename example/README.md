@@ -1,5 +1,7 @@
 By Karl Zylinski, http://zylinski.se -- Support me at https://www.patreon.com/karl_zylinski
 
+![ezgif-1-d391b765a6](https://github.com/user-attachments/assets/0201357c-ebc2-4d3b-865f-7a42ebeb103a)
+
 # Atlas builder example: Using the Atlas with raylib and playing animations
 
 This is an example of how to use the atlas builder. This example uses Raylib. It draws graphics from the atlas and also shows how to play animations that live in the atlas. These animations come from any aseprite files in `textures` folder that have multiple frames.
