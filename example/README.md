@@ -1,6 +1,6 @@
 By Karl Zylinski, http://zylinski.se -- Support me at https://www.patreon.com/karl_zylinski
 
-![ezgif-1-d391b765a6](https://github.com/user-attachments/assets/0201357c-ebc2-4d3b-865f-7a42ebeb103a)
+![Uploading ezgif-1-6b9c4906c7.gif…]()
 
 # Atlas builder example: Using the Atlas with raylib and playing animations
 
