@@ -10,11 +10,11 @@ Animated aseprite files are supported, animations get their own metadata in `atl
 
 The builder can load a font and bake characters into the atlas.
 
-Showcase & demo video: https://www.youtube.com/watch?v=u8Kt0Td76zI
-
 The atlas builder can also split up tilesets and fonts and splat those out into the atlas. It detects if a texture is a tileset by checking if the name starts with `tileset_`.
 
 A big benefit with using an atlas is that you can drastically lower the number of draw calls due to everything being in a single texture.
+
+Showcase & demo video: https://www.youtube.com/watch?v=u8Kt0Td76zI
 
 # Dependencies
 The generator itself only uses core and vendor libs, plus an aseprite package by blob1807, which is included.
