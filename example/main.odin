@@ -12,6 +12,7 @@ import rl "vendor:raylib"
 // don't need atlas.png next to your game after compilation. It will live in the executable. When
 // the executable starts it loads a raylib texture from this data.
 ATLAS_DATA :: #load("atlas.png")
+
 PIXEL_WINDOW_HEIGHT :: 180
 
 Vec2 :: rl.Vector2
@@ -22,6 +23,7 @@ Player :: struct {
 
 	// atlas-based animation. See `animation.odin`.
 	anim: Animation,
+
 	flip_x: bool,
 }
 
@@ -33,7 +35,7 @@ atlas: rl.Texture
 // This is manually constructed in `main` from the font info in `atlas.odin`
 font: rl.Font
 
-// Update proc to move player right and left
+// Update proc to move player right and left and update the player's animation.
 update :: proc() {
 	input: Vec2
 
@@ -111,8 +113,8 @@ draw :: proc() {
 	// Everything that uses the same camera, shader and texture will end up in the same draw call.
 	// This means that the stuff between BeginMode2D and EndMode2D that draws textures, shapes or
 	// text can be a single draw call, given that they all use the atlas and they all use the same
-	// shader. All my textures, fonts and the shapes drawing texture live within the atlas, so they
-	// will all be within one draw call, given that we don't change camera or shader.
+	// shader. All my textures, fonts and the raylib shapes-drawing-texture live within the atlas,
+	// so they will all be within one draw call, given that we don't change camera or shader.
 	rl.BeginMode2D(game_camera)
 
 	// Font is setup in `load_atlased_font()` using info from `atlas.odin`

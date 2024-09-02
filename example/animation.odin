@@ -1,14 +1,16 @@
 // This implements animations using an atlased texture as defined in atlas.odin (which is generated
-// before the code in this folder is built, see build_hot_reload / build_release scripts).
+// before the code in this folder is built).
 //
-// These animations target a specific `Animation_Name` from atlas.odin and when `animation_update`
-// runs it uses a timer to switch to the next frame. It uses the duration in the texture, which
-// may come from an aseprite frame.
+// These animations target a specific `Animation_Name` from atlas.odin. `animation_update` uses a
+// timer to know when to switch to the next frame. It uses the duration in the texture, which may
+// come from an aseprite frame.
 //
 // Use proc `animation_atlas_texture` to fetch the current frame's atlas texture, which you can
 // then draw using:
 // anim_texture := animation_atlas_texture(my_anim)
 // rl.DrawTextureRec(atlas, anim_texture.rect, position, rl.WHITE)
+//
+// See main.odin for a more involved example of how to use the animation_atlas_texture proc.
 
 package game
 
