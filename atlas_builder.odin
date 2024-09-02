@@ -76,7 +76,10 @@ Vec2i :: [2]int
 Atlas_Texture_Rect :: struct {
 	rect: rl.Rectangle,
 	size: Vec2i,
-	offset: Vec2i,
+	offset_top: int,
+	offset_right: int,
+	offset_bottom: int,
+	offset_left: int,
 	name: string,
 	duration: f32,
 }
@@ -583,10 +586,16 @@ main :: proc() {
 			dest := rl.Rectangle {f32(rp.x), f32(rp.y), source.width, source.height}
 			rl.ImageDraw(&atlas, t_img, source, dest, rl.WHITE)
 
+			offset_right := t.document_size.x - (int(dest.width) + t.offset.x)
+			offset_bottom := t.document_size.y - (int(dest.height) + t.offset.y)
+
 			ar := Atlas_Texture_Rect {
 				rect = dest,
 				size = t.document_size,
-				offset = t.offset,
+				offset_top = t.offset.y,
+				offset_right = offset_right,
+				offset_bottom = offset_bottom,
+				offset_left = t.offset.x,
 				name = t.name,
 				duration = t.duration,
 			}
@@ -777,7 +786,15 @@ main :: proc() {
 
 	fmt.fprintln(f, "Atlas_Texture :: struct {")
 	fmt.fprintln(f, "\trect: Rect,")
-	fmt.fprintln(f, "\toffset: Vec2,")
+	fmt.fprintln(f, "\t// These offsets tell you how much space there is between the rect and the edge of the original document.")
+	fmt.fprintln(f, "\t// The atlas is tightly packed, so empty pixels are removed. This can be especially apparent in animations where")
+	fmt.fprintln(f, "\t// frames can have different offsets due to different amount of empty pixels around the frames.")
+	fmt.fprintln(f, "\t// In many cases you need to add {offset_left, offset_top} to your position. But if you are")
+	fmt.fprintln(f, "\t// flipping a texture, then you might need offset_bottom or offset_right.")
+	fmt.fprintln(f, "\toffset_top: f32,")
+	fmt.fprintln(f, "\toffset_right: f32,")
+	fmt.fprintln(f, "\toffset_bottom: f32,")
+	fmt.fprintln(f, "\toffset_left: f32,")
 	fmt.fprintln(f, "\tdocument_size: Vec2,")
 	fmt.fprintln(f, "\tduration: f32,")
 	fmt.fprintln(f, "}")
@@ -787,7 +804,7 @@ main :: proc() {
 	fmt.fprintln(f, "\t.None = {},")
 
 	for r in atlas_textures {
-		fmt.fprintf(f, "\t.%s = {{ rect = {{%v, %v, %v, %v}}, offset = {{%v, %v}}, document_size = {{%v, %v}}, duration = %f}},\n", r.name, r.rect.x, r.rect.y, r.rect.width, r.rect.height, r.offset.x, r.offset.y, r.size.x, r.size.y, r.duration)
+		fmt.fprintf(f, "\t.%s = {{ rect = {{%v, %v, %v, %v}}, offset_top = %v, offset_right = %v, offset_bottom = %v, offset_left = %v, document_size = {{%v, %v}}, duration = %f}},\n", r.name, r.rect.x, r.rect.y, r.rect.width, r.rect.height, r.offset_top, r.offset_right, r.offset_bottom, r.offset_left, r.size.x, r.size.y, r.duration)
 	}
 
 	fmt.fprintln(f, "}\n")
