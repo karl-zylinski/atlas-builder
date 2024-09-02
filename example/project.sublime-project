@@ -3,6 +3,9 @@
 	[
 		{
 			"path": ".",
+		},
+		{
+			"path": "..",
 		}
 	],
 	"build_systems":
@@ -11,7 +14,15 @@
 			"file_regex": "^(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
 			"name": "Atlas builder example",
 			"working_dir": "$project_path",
-			"shell_cmd": "odin run .. && odin run ."
+			"windows": {
+				"shell_cmd": "run.bat",
+			},
+			"osx": {
+				"shell_cmd": "./run.bat",
+			},
+			"linux": {
+				"shell_cmd": "./run.bat",
+			}
 		}
 	],
 	"settings":

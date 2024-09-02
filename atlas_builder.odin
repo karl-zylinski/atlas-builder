@@ -20,7 +20,7 @@ import rl "vendor:raylib"
 ATLAS_SIZE :: 512
 
 TILESET_WIDTH :: 10
-TILE_SIZE :: 10
+TILE_SIZE :: 8
 
 // for package line at top of atlas metadata file
 PACKAGE_NAME :: "game"
@@ -276,19 +276,19 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 		for c in cels {
 			cl := c.cel.(ase.Com_Image_Cel)
-			pixels: []rl.Color
+			cel_pixels: []rl.Color
 
 			if indexed {
-				pixels = make([]rl.Color, int(cl.width) * int(cl.height))
+				cel_pixels = make([]rl.Color, int(cl.width) * int(cl.height))
 				for p, idx in cl.pixel {
 					if p == 0 {
 						continue
 					}
 					
-					pixels[idx] = rl.Color(palette.entries[u32(p)].color)
+					cel_pixels[idx] = rl.Color(palette.entries[u32(p)].color)
 				}
 			} else {
-				pixels = transmute([]rl.Color)(cl.pixel)
+				cel_pixels = transmute([]rl.Color)(cl.pixel)
 			}
 
 			source := rl.Rectangle {
@@ -297,7 +297,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 			}
 
 			from := rl.Image {
-				data = raw_data(pixels),
+				data = raw_data(cel_pixels),
 				width = i32(cl.width),
 				height = i32(cl.height),
 				mipmaps = 1,
@@ -582,7 +582,7 @@ main :: proc() {
 			g := glyphs[idx]
 			img_grayscale := g.image
 
-			grayscale := transmute([^]u8)(img_grayscale.data)
+			grayscale := cast([^]u8)(img_grayscale.data)
 			img_pixels := make([]rl.Color, img_grayscale.width*img_grayscale.height)
 
 			for i in 0..<img_grayscale.width*img_grayscale.height {

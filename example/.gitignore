@@ -8,6 +8,5 @@
 *.dylib
 *.so
 *.dSYM
-linux
 atlas.odin
 atlas.png
