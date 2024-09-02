@@ -1,7 +1,6 @@
-// By Karl Zylinski, http://zylinski.se
-// Support me at https://www.patreon.com/karl_zylinski
+// By Karl Zylinski, http://zylinski.se -- Support me at https://www.patreon.com/karl_zylinski
 //
-// See readme.md for documentation.
+// See README.md for documentation.
 
 package atlas_builder
 
@@ -17,19 +16,35 @@ import "vendor:stb/rect_pack"
 import ase "aseprite"
 import rl "vendor:raylib"
 
+// Size of atlas in NxN pixels. Note: The outputted atlas PNG is cropped to the visible pixels.
 ATLAS_SIZE :: 512
 
+// Set to false to not crop atlas after generation.
+CROP_FINAL_ATLAS :: true
+
+// If you have a tileset (texture with tileset_) prefix, then this is says how many tiles wide it is
 TILESET_WIDTH :: 10
+
+// The NxN pixel size of each tile.
 TILE_SIZE :: 8
 
-// for package line at top of atlas metadata file
+// for package line at top of atlas Odin metadata file
 PACKAGE_NAME :: "game"
+
+// The folder within which to look for textures
 TEXTURES_DIR :: "textures"
 
+// The letters to extract from the font
 LETTERS_IN_FONT :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890?!&.,_:[]-+"
+
+// The font to extract letters from
 FONT_FILENAME :: "font.ttf"
 
+// Path to output final atlas PNG to
 ATLAS_PNG_OUTPUT_PATH :: "atlas.png"
+
+// Path to output atlas Odin metadata file to. Compile this as part of your game to get metadata
+// about where in atlas your textures etc are.
 ATLAS_ODIN_OUTPUT_PATH :: "atlas.odin"
 
 dir_path_to_file_infos :: proc(path: string) -> []os.File_Info {
@@ -629,7 +644,8 @@ main :: proc() {
 
 			rl.ImageDraw(&atlas, t_img, source, dest, rl.WHITE)
 
-			// Add padding lines
+			// Add padding to tiles by adding a pixel border around it and copying the nearest pixels
+			// there. This helps with bleeding when doing subpixel camera movements.
 
 			ts :: TILE_SIZE
 			// Top
@@ -717,7 +733,9 @@ main :: proc() {
 		}
 	}
 
-	rl.ImageAlphaCrop(&atlas, 0)
+	if CROP_FINAL_ATLAS {
+		rl.ImageAlphaCrop(&atlas, 0)	
+	}
 
 	rl.ExportImage(atlas, ATLAS_PNG_OUTPUT_PATH)
 

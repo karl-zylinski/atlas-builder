@@ -116,7 +116,7 @@ draw :: proc() {
 	rl.BeginMode2D(game_camera)
 
 	// Font is setup in `load_atlased_font()` using info from `atlas.odin`
-	rl.DrawTextEx(font, "This text is in same draw call as player", {-30, 20}, 12, 0, rl.WHITE)
+	rl.DrawTextEx(font, "Draw call 1: This text + player + background graphics + tiles", {-140, 20}, 15, 0, rl.WHITE)
 
 	// Draw a single texture from the atlas. Just draw using atlas texture and fetch the rect of
 	// a texture. The name "bush" is there because there's a file in `textures` folder called `bush.ase`
@@ -151,7 +151,7 @@ draw :: proc() {
 	}
 
 	rl.BeginMode2D(ui_camera)
-	rl.DrawTextEx(font, fmt.ctprintf("player_pos: %v", player.pos), {5, 5}, 20, 0, rl.WHITE)
+	rl.DrawTextEx(font, fmt.ctprintf("Draw call 2: This UI\nplayer_pos: %v", player.pos), {5, 5}, 20, 0, rl.WHITE)
 	rl.EndMode2D()
 
 	// Total draw calls for this frame: 2
