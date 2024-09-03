@@ -1,8 +1,11 @@
+# Atlas Builder for Odin games
+This is a program that can generate a texture based on a bunch of other textures. This bigger texture is called an atlas. Using an atlas can make your game's rendering code faster since the number of draw calls can be reduced.
+
 By Karl Zylinski, http://zylinski.se -- Support me at https://www.patreon.com/karl_zylinski
 
 **See the example folder for a sample program that generates and uses an atlas.**
 
-# What's this?
+## Overview
 
 This atlas builder looks into a 'textures' folder for pngs, ase and aseprite files and makes an atlas from those. It outputs both `atlas.png` and `atlas.odin`. The odin file you compile as part of your game. It contains metadata about where in the atlas the textures ended up.
 
@@ -16,7 +19,7 @@ A big benefit with using an atlas is that you can drastically lower the number o
 
 Showcase & demo video: https://www.youtube.com/watch?v=u8Kt0Td76zI
 
-# Dependencies
+## Dependencies
 The generator itself only uses core and vendor libs, plus an aseprite package by blob1807, which is included.
 
 `atlas.odin` uses the type `Rect` which defines a rectangle. Make sure you define such a type in the package where you are going to use `atlas.odin`. For example, if you use Raylib:
@@ -34,7 +37,7 @@ Rect :: struct {
 }
 ```
 
-# How to run the atlas builder
+## How to run the atlas builder
 
 See the README.md in the `example` folder. But in short:
 - Run this package.
@@ -42,7 +45,7 @@ See the README.md in the `example` folder. But in short:
 - `atlas.png` and `atlas.odin` are ouputted
 - Those files can be used within your game to do efficent atlased drawing. See the example for more info.
 
-# Configuration
+## Configuration
 
 There are a few constants at the top of `atlas_builder.odin`:
 
@@ -58,14 +61,14 @@ There are a few constants at the top of `atlas_builder.odin`:
 - `FONT_FILENAME`: The filename of the font to extract letters from.
 - `FONT_SIZE`: The font size of letters extracted from font
 
-# Loading the atlas
+## Loading the atlas
 
 In your game load the atlas once, for example:
 ```
 atlas = rl.LoadTexture(TEXTURE_ATLAS_FILENAME)
 ```
 
-# Draw textures from atlas
+## Draw textures from atlas
 
 Draw like this using Raylib:
 
@@ -81,7 +84,7 @@ This uses texture name "Bush" which will exist if there is a texture called `tex
 
 There's also four offsets on `atlas_textures[.Bush]`: `offset_top`, `offset_right`, `offset_bottom` and `offset_left`. The offsets records the distance between the pixels in the atlas and the edge of the original document in the image editing software. Since the atlas is tightly packed, any empty pixels are removed. These offsets can be used to correct for that removal. This saves atlas-space, since it would have to write empty pixels otherwise! Normally you'd need to add `{offset_left, offset_top}` to your position, but if you flip the texture in X or Y direction then you might need the `offset_right` or `offset_bottom`. See the [animation examples](#animations) for exampl I use it.
 
-# Atlas-based Raylib font
+## Atlas-based Raylib font
 
 Set `FONT_FILENAME` and `LETTERS_IN_FONT` inside `atlas_builder.odin` before running the atlas builder.
 
@@ -114,7 +117,7 @@ font := rl.Font {
 
 Here `atlas_glyphs` and `ATLAS_FONT_SIZE` exist within `atlas.odin`.
 
-# Make Raylib draw shapes using atlas
+## Make Raylib draw shapes using atlas
 
 Do this once at startup:
 
@@ -125,7 +128,7 @@ rl.SetShapesTexture(atlas, shapes_texture_rect)
 After this whenever you call `rl.DrawRectangleRec` or any of the the other shape drawing procs, then they will use the atlas as well, avoiding separate draw calls for shapes.
 
 
-# Animations
+## Animations
 
 There's an `atlas_animations` list. Any aseprite file that has more than one frame will be treated as an animation and added to that list. Also, tags within the ase file will result in separate animations. Each atlas animation entry knows which is the first and last texture in the animation. The animation update code then simply becomes to step to the next frame when necesarry. There's a duration on each Atlas_Texture struct that contains the duration of the frame as set in aseprite.
 
@@ -219,7 +222,7 @@ and finally draw the animation
 animation_draw(where_ever_you_put_the_anim, position)
 ```
 
-# Tilesets
+## Tilesets
 
 If a texture name starts with `tileset_` then it will be treated as a tileset. In that case `atlas_tiles` contains the mapping from tile IDs the atlas rects.
 
