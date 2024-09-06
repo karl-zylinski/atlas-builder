@@ -1,6 +1,6 @@
-![ezgif-1-6b9c4906c7](https://github.com/user-attachments/assets/34590b88-4970-4dbf-87d6-2a407349cd69)
-
 # Atlas builder example: Generating and using an atlas, including how to do animation
+
+![ezgif-1-6b9c4906c7](https://github.com/user-attachments/assets/34590b88-4970-4dbf-87d6-2a407349cd69)
 
 This is an example of how to use the atlas builder. This example uses Raylib. It draws graphics from the atlas and also shows how to play animations that live in the atlas. These animations come from any aseprite files in `textures` folder that have multiple frames.
 
