@@ -3,7 +3,9 @@ This is a program that can generate a texture based on a bunch of other textures
 
 By Karl Zylinski, http://zylinski.se -- Support me at https://www.patreon.com/karl_zylinski
 
-**See the example folder for a sample program that generates and uses an atlas.**
+**See the example folder for a sample program that generates and uses an atlas. The example program looks like this:**
+
+![ezgif-1-6b9c4906c7](https://github.com/user-attachments/assets/34590b88-4970-4dbf-87d6-2a407349cd69)
 
 ## Overview
 
