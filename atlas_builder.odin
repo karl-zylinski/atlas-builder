@@ -219,6 +219,26 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		fmt.println("Document is indexed, but found no palette!")
 	}
 
+	visible_layers := make(map[u16]bool)
+	defer delete(visible_layers)
+	layer_index : u16
+	for f in doc.frames {
+		for &c in f.chunks {
+			#partial switch &c in c {
+			case ase.Layer_Chunk:
+				if ase.Layer_Chunk_Flag.Visiable in c.flags {
+					visible_layers[layer_index] = true
+				}
+				layer_index += 1
+			}
+		}
+	}
+
+	if len(visible_layers) == 0 {
+		fmt.println("No visible layers in document!")
+		return
+	}
+	
 	for f in doc.frames {
 		duration: f32 = f32(f.header.duration)/1000.0
 
@@ -229,12 +249,14 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		for &c in f.chunks {
 			#partial switch &c in c {
 			case ase.Cel_Chunk:
-				if cl, ok := &c.cel.(ase.Com_Image_Cel); ok {
-					cel_min.x = min(cel_min.x, int(c.x))
-					cel_min.y = min(cel_min.y, int(c.y))
-					cel_max.x = max(cel_max.x, int(c.x) + int(cl.width))
-					cel_max.y = max(cel_max.y, int(c.y) + int(cl.height))
-					append(&cels, &c)
+				if c.layer_index in visible_layers {
+					if cl, ok := &c.cel.(ase.Com_Image_Cel); ok {
+						cel_min.x = min(cel_min.x, int(c.x))
+						cel_min.y = min(cel_min.y, int(c.y))
+						cel_max.x = max(cel_max.x, int(c.x) + int(cl.width))
+						cel_max.y = max(cel_max.y, int(c.y) + int(cl.height))
+						append(&cels, &c)
+					}
 				}
 			case ase.Tags_Chunk:
 				for tag in c {
