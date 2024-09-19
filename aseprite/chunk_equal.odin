@@ -1,4 +1,4 @@
-//+private
+#+private
 package aseprite_file_handler
 
 import "core:fmt"

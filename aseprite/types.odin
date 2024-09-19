@@ -3,6 +3,7 @@ package aseprite_file_handler
 
 import "base:runtime"
 import "core:io"
+import "core:os"
 import "core:math/fixed"
 import "core:compress/zlib"
 import vzlib "vendor:zlib"
@@ -14,7 +15,7 @@ import vzlib "vendor:zlib"
 // Only Size/Lengths that can't be gotten by len() are set.
 
 Unmarshal_Errors :: enum {
-    Unable_To_Open_File,
+    None,
     Unable_Make_Reader,
     Bad_File_Magic_Number,
     Bad_Frame_Magic_Number,
@@ -28,14 +29,16 @@ Unmarshal_Errors :: enum {
 }
 Unmarshal_Error :: union #shared_nil {
     Unmarshal_Errors, 
-    runtime.Allocator_Error, 
-    io.Error,
     Read_Error,
-    zlib.Error,
     ZLIB_Errors,
+    runtime.Allocator_Error, 
+    zlib.Error,
+    io.Error,
+    os.Error,
 }
 
 Read_Errors :: enum {
+    None,
     Unable_To_Decode_Data,
     Wrong_Read_Size,
     Array_To_Small,
@@ -44,6 +47,7 @@ Read_Errors :: enum {
 Read_Error :: union #shared_nil {Read_Errors, io.Error, runtime.Allocator_Error}
 
 Marshal_Errors :: enum {
+    None,
     Unable_Make_Writer,
     Buffer_Not_Big_Enough,
     Invalid_Chunk_Type,
@@ -54,13 +58,14 @@ Marshal_Errors :: enum {
 }
 Marshal_Error :: union #shared_nil {
     Marshal_Errors, 
-    runtime.Allocator_Error, 
     Write_Error,
-    io.Error,
     ZLIB_Errors,
+    io.Error,
+    runtime.Allocator_Error, 
 }
 
 Write_Errors :: enum {
+    None,
     Unable_To_Encode_Data,
     Wrong_Write_Size,
     Array_To_Small,
