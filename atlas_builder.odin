@@ -54,11 +54,11 @@ FONT_FILENAME :: "font.ttf"
 FONT_SIZE :: 32
 
 Vec2i :: [2]int
-Vec2 :: [2]f32
 
 Rect :: struct {
-	x, y, width, height: f32,
+	x, y, width, height: int,
 }
+
 Color :: [4]u8
 
 Atlas_Texture_Rect :: struct {
@@ -211,7 +211,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 	document_rect := Rect {
 		0, 0,
-		f32(doc.header.width), f32(doc.header.height),
+		int(doc.header.width), int(doc.header.height),
 	}
 
 	base_name := asset_name(filename)
@@ -326,7 +326,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 			source := Rect {
 				0, 0,
-				f32(cl.width), f32(cl.height),
+				int(cl.width), int(cl.height),
 			}
 
 			from := Image {
@@ -344,8 +344,8 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		}
 
 		cels_rect := Rect {
-			f32(cel_min.x), f32(cel_min.y),
-			f32(s.x), f32(s.y),
+			cel_min.x, cel_min.y,
+			s.x, s.y,
 		}
 
 		source_rect := rect_intersect(cels_rect, document_rect)
@@ -639,7 +639,7 @@ main :: proc() {
 	if tileset.pixels_size.x != 0 && tileset.pixels_size.y != 0 {
 		h := tileset.pixels_size.y / TILE_SIZE
 		w := tileset.pixels_size.x / TILE_SIZE
-		top_left := Vec2 {-f32(tileset.offset.x), -f32(tileset.offset.y)}
+		top_left := -tileset.offset
 
 		t_img := Image {
 			data = tileset.pixels,
@@ -649,8 +649,8 @@ main :: proc() {
 		
 		for x in 0 ..<w {
 			for y in 0..<h {
-				tx := f32(TILE_SIZE * x) + top_left.x
-				ty := f32(TILE_SIZE * y) + top_left.y
+				tx := TILE_SIZE * x + top_left.x
+				ty := TILE_SIZE * y + top_left.y
 
 				all_blank := true
 				txx_loop: for txx in tx..<tx+TILE_SIZE {
@@ -704,7 +704,7 @@ main :: proc() {
 
 		switch type {
 		case .ShapesTexture:
-			shapes_texture_rect = Rect {f32(rp.x), f32(rp.y), 10, 10}
+			shapes_texture_rect = Rect {int(rp.x), int(rp.y), 10, 10}
 			draw_image_rectangle(&atlas, shapes_texture_rect, {255, 255, 255, 255})
 		case .Texture:
 			idx := idx_from_rect_id(rp.id)
@@ -717,10 +717,10 @@ main :: proc() {
 				height = t.pixels_size.y,
 			}
 
-			source := Rect {f32(t.source_offset.x), f32(t.source_offset.y), f32(t.source_size.x), f32(t.source_size.y)}
+			source := Rect {t.source_offset.x, t.source_offset.y, t.source_size.x, t.source_size.y}
 			draw_image(&atlas, t_img, source, {int(rp.x), int(rp.y)})
 
-			atlas_rect := Rect {f32(rp.x), f32(rp.y), source.width, source.height}
+			atlas_rect := Rect {int(rp.x), int(rp.y), source.width, source.height}
 			offset_right := t.document_size.x - (int(atlas_rect.width) + t.offset.x)
 			offset_bottom := t.document_size.y - (int(atlas_rect.height) + t.offset.y)
 
@@ -741,8 +741,8 @@ main :: proc() {
 			g := glyphs[idx]
 			img := g.image
 
-			source := Rect {0, 0, f32(img.width), f32(img.height)}
-			dest := Rect {f32(rp.x) + 1, f32(rp.y) + 1, source.width, source.height}
+			source := Rect {0, 0, img.width, img.height}
+			dest := Rect {int(rp.x) + 1, int(rp.y) + 1, source.width, source.height}
 
 			draw_image(&atlas, img, source, {int(rp.x) + 1, int(rp.y) + 1})
 
@@ -755,10 +755,10 @@ main :: proc() {
 		case .Tile:
 			ix, iy := x_y_from_tile_id(rp.id)
 
-			x := f32(TILE_SIZE * ix)
-			y := f32(TILE_SIZE * iy)
+			x := TILE_SIZE * ix
+			y := TILE_SIZE * iy
 
-			top_left := Vec2 {-f32(tileset.offset.x), -f32(tileset.offset.y)}
+			top_left := -tileset.offset
 
 			t_img := Image {
 				data = tileset.pixels,
@@ -767,7 +767,7 @@ main :: proc() {
 			}
 			
 			source := Rect {x + top_left.x, y + top_left.y, TILE_SIZE, TILE_SIZE}
-			dest := Rect {f32(rp.x) + 1, f32(rp.y) + 1, source.width, source.height}
+			dest := Rect {int(rp.x) + 1, int(rp.y) + 1, source.width, source.height}
 
 			draw_image(&atlas, t_img, source, {int(rp.x), int(rp.y)})
 
