@@ -198,6 +198,7 @@ main :: proc() {
 	for !rl.WindowShouldClose() {
 		update()
 		draw()
+		free_all(context.temp_allocator)
 	}
 
 	rl.UnloadTexture(atlas)
