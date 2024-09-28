@@ -102,10 +102,6 @@ Atlas_Glyph :: struct {
 	glyph: Glyph,
 }
 
-asset_name :: proc(path: string) -> string {
-	return fmt.tprintf("%s", strings.to_ada_case(slashpath.name(slashpath.base(path)), context.temp_allocator))
-}
-
 Texture_Data :: struct {
 	source_size: Vec2i,
 	source_offset: Vec2i,
@@ -119,16 +115,6 @@ Texture_Data :: struct {
 	tile_coord: Vec2i,
 }
 
-rect_intersect :: proc(r1, r2: Rect) -> Rect {
-	x1 := max(r1.x, r2.x)
-	y1 := max(r1.y, r2.y)
-	x2 := min(r1.x + r1.width, r2.x + r2.width)
-	y2 := min(r1.y + r1.height, r2.y + r2.height)
-	if x2 < x1 { x2 = x1 }
-	if y2 < y1 { y2 = y1 }
-	return {x1, y1, x2 - x1, y2 - y1}
-}
-
 Tileset :: struct {
 	pixels: []Color,
 	pixels_size: Vec2i,
@@ -136,6 +122,7 @@ Tileset :: struct {
 	offset: Vec2i,
 }
 
+// Loads a tileset. Currently only supports .ase tilesets
 load_tileset :: proc(filename: string, t: ^Tileset) {
 	data, data_ok := os.read_entire_file(filename)
 
@@ -205,6 +192,12 @@ Animation :: struct {
 	document_size: Vec2i,
 	loop_direction: ase.Tag_Loop_Dir,
 	repeat: u16,
+}
+
+// Returns the format I want for names in atlas.odin. Takes the name from a path
+// and turns it from player_jump.png to Player_Jump.
+asset_name :: proc(path: string) -> string {
+	return fmt.tprintf("%s", strings.to_ada_case(slashpath.name(slashpath.base(path))))
 }
 
 load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data, animations: ^[dynamic]Animation) {
@@ -290,7 +283,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 			case ase.Tags_Chunk:
 				for tag in c {
 					a := Animation {
-						name = fmt.tprint(base_name, strings.to_ada_case(tag.name, context.temp_allocator), sep = "_"),
+						name = fmt.tprint(base_name, strings.to_ada_case(tag.name), sep = "_"),
 						first_texture = fmt.tprint(base_name, tag.from_frame, sep = ""),
 						last_texture = fmt.tprint(base_name, tag.to_frame, sep = ""),
 						loop_direction = tag.loop_direction,
@@ -359,6 +352,16 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		cels_rect := Rect {
 			cel_min.x, cel_min.y,
 			s.x, s.y,
+		}
+
+		rect_intersect :: proc(r1, r2: Rect) -> Rect {
+			x1 := max(r1.x, r2.x)
+			y1 := max(r1.y, r2.y)
+			x2 := min(r1.x + r1.width, r2.x + r2.width)
+			y2 := min(r1.y + r1.height, r2.y + r2.height)
+			if x2 < x1 { x2 = x1 }
+			if y2 < y1 { y2 = y1 }
+			return {x1, y1, x2 - x1, y2 - y1}
 		}
 
 		source_rect := rect_intersect(cels_rect, document_rect)
@@ -502,6 +505,7 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 }
 
 main :: proc() {
+	start_time := time.now()
 	textures: [dynamic]Texture_Data
 	animations: [dynamic]Animation
 
@@ -1015,4 +1019,7 @@ main :: proc() {
 	}
 
 	fmt.fprintln(f, "}")
+
+	run_time_ms := time.duration_milliseconds(time.diff(start_time, time.now()))
+	fmt.printfln(ATLAS_PNG_OUTPUT_PATH + " and " + ATLAS_ODIN_OUTPUT_PATH  + " created in %.2f ms", run_time_ms)
 }
