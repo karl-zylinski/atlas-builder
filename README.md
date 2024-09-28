@@ -3,7 +3,7 @@ This is a program that can generate a texture based on a bunch of other textures
 
 **See the example folder for a sample program that generates and uses an atlas. The example program looks like this:**
 
-![atlas_builder](https://github.com/user-attachments/assets/e8fed7ed-22f6-432e-95ed-ddcd9910baa7)
+![ezgif-6-c5e3c6bb73](https://github.com/user-attachments/assets/9b408c22-9928-4d14-9184-24c8629f6cc9)
 
 ## Overview
 
