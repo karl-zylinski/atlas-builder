@@ -70,6 +70,10 @@ Rect :: struct {
 
 Color :: [4]u8
 
+// Note that types such as Atlas_Texture_Rect are internal types used during the
+// atlas generation. The types written into the atlas.odin file are similar but
+// may be slightly different, see the end of `main` where .odin file is written.
+
 Atlas_Texture_Rect :: struct {
 	rect: Rect,
 	size: Vec2i,
