@@ -52,8 +52,11 @@ FONT_SIZE :: 32
 
 Vec2i :: [2]int
 
+Rect :: rl.Rectangle
+Color :: [4]u8
+
 Atlas_Texture_Rect :: struct {
-	rect: rl.Rectangle,
+	rect: Rect,
 	size: Vec2i,
 	offset_top: int,
 	offset_right: int,
@@ -64,12 +67,12 @@ Atlas_Texture_Rect :: struct {
 }
 
 Atlas_Tile_Rect :: struct {
-	rect: rl.Rectangle,
+	rect: Rect,
 	coord: Vec2i,
 }
 
 Atlas_Glyph :: struct {
-	rect: rl.Rectangle,
+	rect: Rect,
 	glyph: rl.GlyphInfo,
 }
 
@@ -84,13 +87,13 @@ Texture_Data :: struct {
 	offset: Vec2i,
 	name: string,
 	pixels_size: Vec2i,
-	pixels: []rl.Color,
+	pixels: []Color,
 	duration: f32,
 	is_tile: bool,
 	tile_coord: Vec2i,
 }
 
-rect_intersect :: proc(r1, r2: rl.Rectangle) -> rl.Rectangle {
+rect_intersect :: proc(r1, r2: Rect) -> Rect {
 	x1 := max(r1.x, r2.x)
 	y1 := max(r1.y, r2.y)
 	x2 := min(r1.x + r1.width, r2.x + r2.width)
@@ -101,7 +104,7 @@ rect_intersect :: proc(r1, r2: rl.Rectangle) -> rl.Rectangle {
 }
 
 Tileset :: struct {
-	pixels: []rl.Color,
+	pixels: []Color,
 	pixels_size: Vec2i,
 	visible_pixels_size: Vec2i,
 	offset: Vec2i,
@@ -148,16 +151,16 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 				case ase.Cel_Chunk:
 					if cl, ok := cv.cel.(ase.Com_Image_Cel); ok {
 						if indexed {
-							t.pixels = make([]rl.Color, int(cl.width) * int(cl.height))
+							t.pixels = make([]Color, int(cl.width) * int(cl.height))
 							for p, idx in cl.pixel {
 								if p == 0 {
 									continue
 								}
 
-								t.pixels[idx] = rl.Color(palette.entries[u32(p)].color)
+								t.pixels[idx] = Color(palette.entries[u32(p)].color)
 							}
 						} else {
-							t.pixels = slice.clone(transmute([]rl.Color)(cl.pixel))
+							t.pixels = slice.clone(transmute([]Color)(cl.pixel))
 						}
 
 						t.offset = {int(cv.x), int(cv.y)}
@@ -193,7 +196,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		return
 	}
 
-	document_rect := rl.Rectangle {
+	document_rect := Rect {
 		0, 0,
 		f32(doc.header.width), f32(doc.header.height),
 	}
@@ -283,7 +286,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		})
 
 		s := cel_max - cel_min
-		pixels := make([]rl.Color, int(s.x*s.y))
+		pixels := make([]Color, int(s.x*s.y))
 
 		combined_layers := rl.Image {
 			data = raw_data(pixels),
@@ -295,22 +298,22 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 		for c in cels {
 			cl := c.cel.(ase.Com_Image_Cel)
-			cel_pixels: []rl.Color
+			cel_pixels: []Color
 
 			if indexed {
-				cel_pixels = make([]rl.Color, int(cl.width) * int(cl.height))
+				cel_pixels = make([]Color, int(cl.width) * int(cl.height))
 				for p, idx in cl.pixel {
 					if p == 0 {
 						continue
 					}
 					
-					cel_pixels[idx] = rl.Color(palette.entries[u32(p)].color)
+					cel_pixels[idx] = Color(palette.entries[u32(p)].color)
 				}
 			} else {
-				cel_pixels = transmute([]rl.Color)(cl.pixel)
+				cel_pixels = transmute([]Color)(cl.pixel)
 			}
 
-			source := rl.Rectangle {
+			source := Rect {
 				0, 0,
 				f32(cl.width), f32(cl.height),
 			}
@@ -323,7 +326,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 				format = .UNCOMPRESSED_R8G8B8A8,
 			}
 
-			dest := rl.Rectangle {
+			dest := Rect {
 				f32(c.x) - f32(cel_min.x),
 				f32(c.y) - f32(cel_min.y),
 				f32(cl.width),
@@ -333,7 +336,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 			rl.ImageDraw(&combined_layers, from, source, dest, rl.WHITE)
 		}
 
-		cels_rect := rl.Rectangle {
+		cels_rect := Rect {
 			f32(cel_min.x), f32(cel_min.y),
 			f32(s.x), f32(s.y),
 		}
@@ -404,7 +407,7 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		document_size = {img.width, img.height},
 		duration = 0,
 		name = asset_name(filename),
-		pixels = slice.clone(transmute([]rl.Color)(img.pixels.buf[:])),
+		pixels = slice.clone(transmute([]Color)(img.pixels.buf[:])),
 	}
 
 	append(textures, td)
@@ -585,14 +588,14 @@ main :: proc() {
 	atlas_tiles: [dynamic]Atlas_Tile_Rect
 
 	atlas_glyphs: [dynamic]Atlas_Glyph
-	shapes_texture_rect: rl.Rectangle
+	shapes_texture_rect: Rect
 
 	for rp in pack_rects {
 		type := rect_id_type(rp.id)
 
 		switch type {
 		case .ShapesTexture:
-			shapes_texture_rect = rl.Rectangle {f32(rp.x), f32(rp.y), 10, 10}
+			shapes_texture_rect = Rect {f32(rp.x), f32(rp.y), 10, 10}
 			rl.ImageDrawRectangleRec(&atlas, shapes_texture_rect, rl.WHITE)
 		case .Texture:
 			idx := idx_from_rect_id(rp.id)
@@ -606,8 +609,8 @@ main :: proc() {
 				format = .UNCOMPRESSED_R8G8B8A8,
 			}
 
-			source := rl.Rectangle {f32(t.source_offset.x), f32(t.source_offset.y), f32(t.source_size.x), f32(t.source_size.y)}
-			dest := rl.Rectangle {f32(rp.x), f32(rp.y), source.width, source.height}
+			source := Rect {f32(t.source_offset.x), f32(t.source_offset.y), f32(t.source_size.x), f32(t.source_size.y)}
+			dest := Rect {f32(rp.x), f32(rp.y), source.width, source.height}
 			rl.ImageDraw(&atlas, t_img, source, dest, rl.WHITE)
 
 			offset_right := t.document_size.x - (int(dest.width) + t.offset.x)
@@ -631,7 +634,7 @@ main :: proc() {
 			img_grayscale := g.image
 
 			grayscale := cast([^]u8)(img_grayscale.data)
-			img_pixels := make([]rl.Color, img_grayscale.width*img_grayscale.height)
+			img_pixels := make([]Color, img_grayscale.width*img_grayscale.height)
 
 			for i in 0..<img_grayscale.width*img_grayscale.height {
 				a := grayscale[i]
@@ -646,8 +649,8 @@ main :: proc() {
 			img.data = raw_data(img_pixels)
 			img.format = .UNCOMPRESSED_R8G8B8A8
 
-			source := rl.Rectangle {0, 0, f32(img.width), f32(img.height)}
-			dest := rl.Rectangle {f32(rp.x), f32(rp.y), source.width, source.height}
+			source := Rect {0, 0, f32(img.width), f32(img.height)}
+			dest := Rect {f32(rp.x), f32(rp.y), source.width, source.height}
 
 			rl.ImageDraw(&atlas, img, source, dest, rl.WHITE)
 
@@ -672,8 +675,8 @@ main :: proc() {
 				format = .UNCOMPRESSED_R8G8B8A8,
 			}
 			
-			source := rl.Rectangle {x + top_left.x, y + top_left.y, TILE_SIZE, TILE_SIZE}
-			dest := rl.Rectangle {f32(rp.x) + 1, f32(rp.y) + 1, source.width, source.height}
+			source := Rect {x + top_left.x, y + top_left.y, TILE_SIZE, TILE_SIZE}
+			dest := Rect {f32(rp.x) + 1, f32(rp.y) + 1, source.width, source.height}
 
 			rl.ImageDraw(&atlas, t_img, source, dest, rl.WHITE)
 
@@ -683,14 +686,14 @@ main :: proc() {
 			ts :: TILE_SIZE
 			// Top
 			{
-				psource := rl.Rectangle {
+				psource := Rect {
 					source.x,
 					source.y,
 					ts,
 					1,
 				}
 
-				pdest := rl.Rectangle {
+				pdest := Rect {
 					dest.x,
 					dest.y - 1,
 					ts,
@@ -702,14 +705,14 @@ main :: proc() {
 
 			// Bottom
 			{
-				psource := rl.Rectangle {
+				psource := Rect {
 					source.x,
 					source.y + ts -1,
 					ts,
 					1,
 				}
 
-				pdest := rl.Rectangle {
+				pdest := Rect {
 					dest.x,
 					dest.y + ts,
 					ts,
@@ -721,14 +724,14 @@ main :: proc() {
 
 			// Left
 			{
-				psource := rl.Rectangle {
+				psource := Rect {
 					source.x,
 					source.y,
 					1,
 					ts,
 				}
 				
-				pdest := rl.Rectangle {
+				pdest := Rect {
 					dest.x - 1,
 					dest.y,
 					1,
@@ -740,14 +743,14 @@ main :: proc() {
 
 			// Right
 			{
-				psource := rl.Rectangle {
+				psource := Rect {
 					source.x + ts - 1,
 					source.y,
 					1,
 					ts,
 				}
 				
-				pdest := rl.Rectangle {
+				pdest := Rect {
 					dest.x + ts,
 					dest.y,
 					1,
