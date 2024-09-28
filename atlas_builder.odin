@@ -10,9 +10,12 @@ import "core:path/slashpath"
 import "core:slice"
 import "core:strings"
 import "core:time"
+import "core:c"
+import "base:runtime"
 import "core:unicode/utf8"
 import "core:image/png"
 import "vendor:stb/rect_pack"
+import "vendor:stb/image"
 import ase "aseprite"
 import rl "vendor:raylib"
 
@@ -288,12 +291,10 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		s := cel_max - cel_min
 		pixels := make([]Color, int(s.x*s.y))
 
-		combined_layers := rl.Image {
-			data = raw_data(pixels),
-			width = i32(s.x),
-			height = i32(s.y),
-			mipmaps = 1,
-			format = .UNCOMPRESSED_R8G8B8A8,
+		combined_layers := Image {
+			data = pixels,
+			width = s.x,
+			height = s.y,
 		}
 
 		for c in cels {
@@ -318,22 +319,18 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 				f32(cl.width), f32(cl.height),
 			}
 
-			from := rl.Image {
-				data = raw_data(cel_pixels),
-				width = i32(cl.width),
-				height = i32(cl.height),
-				mipmaps = 1,
-				format = .UNCOMPRESSED_R8G8B8A8,
+			from := Image {
+				data = cel_pixels,
+				width = int(cl.width),
+				height = int(cl.height),
 			}
 
-			dest := Rect {
-				f32(c.x) - f32(cel_min.x),
-				f32(c.y) - f32(cel_min.y),
-				f32(cl.width),
-				f32(cl.height),
+			dest_pos := Vec2i {
+				int(c.x) - cel_min.x,
+				int(c.y) - cel_min.y,
 			}
 
-			rl.ImageDraw(&combined_layers, from, source, dest, rl.WHITE)
+			draw_image(&combined_layers, from, source, dest_pos)
 		}
 
 		cels_rect := Rect {
@@ -375,6 +372,74 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 		append(animations, a)
 	}
+}
+
+Image :: struct {
+	data: []Color,
+	width: int,
+	height: int,
+}
+
+draw_image :: proc(to: ^Image, from: Image, source: Rect, pos: Vec2i) {
+	for sxf in 0..<source.width {
+		for syf in 0..<source.height {
+			sx := int(source.x+sxf)
+			sy := int(source.y+syf)
+
+			if sx < 0 || sx >= from.width {
+				continue
+			}
+
+			if sy < 0 || sy >= from.height {
+				continue
+			}
+
+			dx := pos.x + int(sxf)
+			dy := pos.y + int(syf)
+
+			if dx < 0 || dx >= to.width {
+				continue
+			}
+
+			if dy < 0 || dy >= to.height {
+				continue
+			}
+
+			from_idx := sy * from.width + sx
+			to_idx := dy * to.width + dx
+			to.data[to_idx] = from.data[from_idx]
+		}
+	}
+}
+
+draw_image_rectangle :: proc(to: ^Image, rect: Rect, color: Color) {
+	for dxf in 0..<rect.width {
+		for dyf in 0..<rect.height {
+			dx := int(rect.x) + int(dxf)
+			dy := int(rect.y) + int(dyf)
+
+			if dx < 0 || dx >= to.width {
+				continue
+			}
+
+			if dy < 0 || dy >= to.height {
+				continue
+			}
+
+			to_idx := dy * to.width + dx
+			to.data[to_idx] = color
+		}
+	}
+}
+
+get_image_pixel :: proc(img: Image, x: int, y: int) -> Color {
+	idx := img.width * y + x
+
+	if idx < 0 || idx >= len(img.data) {
+		return {}
+	}
+
+	return img.data[idx]
 }
 
 load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data) {
@@ -536,11 +601,10 @@ main :: proc() {
 		w := tileset.pixels_size.x / TILE_SIZE
 		top_left: rl.Vector2 = {-f32(tileset.offset.x), -f32(tileset.offset.y)}
 
-		t_img := rl.Image {
-			data = raw_data(tileset.pixels),
-			width = i32(tileset.pixels_size.x),
-			height = i32(tileset.pixels_size.y),
-			format = .UNCOMPRESSED_R8G8B8A8,
+		t_img := Image {
+			data = tileset.pixels,
+			width = tileset.pixels_size.x,
+			height = tileset.pixels_size.y,
 		}
 		
 		for x in 0 ..<w {
@@ -551,7 +615,7 @@ main :: proc() {
 				all_blank := true
 				txx_loop: for txx in tx..<tx+TILE_SIZE {
 					for tyy in ty..<ty+TILE_SIZE {
-						if rl.GetImageColor(t_img, i32(txx), i32(tyy)) != rl.BLANK {
+						if get_image_pixel(t_img, int(txx), int(tyy)) != {} {
 							all_blank = false
 							break txx_loop
 						}
@@ -583,7 +647,12 @@ main :: proc() {
 		fmt.println("failed to pack some rects")
 	}
 
-	atlas := rl.GenImageColor(ATLAS_SIZE, ATLAS_SIZE, rl.BLANK)
+	atlas_pixels := make([]Color, ATLAS_SIZE*ATLAS_SIZE)
+	atlas := Image {
+		data = atlas_pixels,
+		width = ATLAS_SIZE,
+		height = ATLAS_SIZE,
+	}
 	atlas_textures: [dynamic]Atlas_Texture_Rect
 	atlas_tiles: [dynamic]Atlas_Tile_Rect
 
@@ -596,28 +665,27 @@ main :: proc() {
 		switch type {
 		case .ShapesTexture:
 			shapes_texture_rect = Rect {f32(rp.x), f32(rp.y), 10, 10}
-			rl.ImageDrawRectangleRec(&atlas, shapes_texture_rect, rl.WHITE)
+			draw_image_rectangle(&atlas, shapes_texture_rect, rl.WHITE)
 		case .Texture:
 			idx := idx_from_rect_id(rp.id)
 
 			t := textures[idx]
 
-			t_img := rl.Image {
-				data = raw_data(t.pixels),
-				width = i32(t.pixels_size.x),
-				height = i32(t.pixels_size.y),
-				format = .UNCOMPRESSED_R8G8B8A8,
+			t_img := Image {
+				data = t.pixels,
+				width = t.pixels_size.x,
+				height = t.pixels_size.y,
 			}
 
 			source := Rect {f32(t.source_offset.x), f32(t.source_offset.y), f32(t.source_size.x), f32(t.source_size.y)}
-			dest := Rect {f32(rp.x), f32(rp.y), source.width, source.height}
-			rl.ImageDraw(&atlas, t_img, source, dest, rl.WHITE)
+			draw_image(&atlas, t_img, source, {int(rp.x), int(rp.y)})
 
-			offset_right := t.document_size.x - (int(dest.width) + t.offset.x)
-			offset_bottom := t.document_size.y - (int(dest.height) + t.offset.y)
+			atlas_rect := Rect {f32(rp.x), f32(rp.y), source.width, source.height}
+			offset_right := t.document_size.x - (int(atlas_rect.width) + t.offset.x)
+			offset_bottom := t.document_size.y - (int(atlas_rect.height) + t.offset.y)
 
 			ar := Atlas_Texture_Rect {
-				rect = dest,
+				rect = atlas_rect,
 				size = t.document_size,
 				offset_top = t.offset.y,
 				offset_right = offset_right,
@@ -644,15 +712,17 @@ main :: proc() {
 				img_pixels[i].a = a
 			}
 
-			img := img_grayscale
 
-			img.data = raw_data(img_pixels)
-			img.format = .UNCOMPRESSED_R8G8B8A8
+			img := Image {
+				data = img_pixels,
+				width = int(img_grayscale.width),
+				height = int(img_grayscale.height),
+			}
 
 			source := Rect {0, 0, f32(img.width), f32(img.height)}
 			dest := Rect {f32(rp.x), f32(rp.y), source.width, source.height}
 
-			rl.ImageDraw(&atlas, img, source, dest, rl.WHITE)
+			draw_image(&atlas, img, source, {int(rp.x), int(rp.y)})
 
 			ag := Atlas_Glyph {
 				rect = dest,
@@ -668,17 +738,16 @@ main :: proc() {
 
 			top_left: rl.Vector2 = {-f32(tileset.offset.x), -f32(tileset.offset.y)}
 
-			t_img := rl.Image {
-				data = raw_data(tileset.pixels),
-				width = i32(tileset.pixels_size.x),
-				height = i32(tileset.pixels_size.y),
-				format = .UNCOMPRESSED_R8G8B8A8,
+			t_img := Image {
+				data = tileset.pixels,
+				width = tileset.pixels_size.x,
+				height = tileset.pixels_size.y,
 			}
 			
 			source := Rect {x + top_left.x, y + top_left.y, TILE_SIZE, TILE_SIZE}
 			dest := Rect {f32(rp.x) + 1, f32(rp.y) + 1, source.width, source.height}
 
-			rl.ImageDraw(&atlas, t_img, source, dest, rl.WHITE)
+			draw_image(&atlas, t_img, source, {int(rp.x), int(rp.y)})
 
 			// Add padding to tiles by adding a pixel border around it and copying the nearest pixels
 			// there. This helps with bleeding when doing subpixel camera movements.
@@ -693,14 +762,7 @@ main :: proc() {
 					1,
 				}
 
-				pdest := Rect {
-					dest.x,
-					dest.y - 1,
-					ts,
-					1,
-				}
-
-				rl.ImageDraw(&atlas, t_img, psource, pdest, rl.WHITE)
+				draw_image(&atlas, t_img, psource, {int(dest.x), int(dest.y - 1)})
 			}
 
 			// Bottom
@@ -712,14 +774,7 @@ main :: proc() {
 					1,
 				}
 
-				pdest := Rect {
-					dest.x,
-					dest.y + ts,
-					ts,
-					1,
-				}
-
-				rl.ImageDraw(&atlas, t_img, psource, pdest, rl.WHITE)
+				draw_image(&atlas, t_img, psource, {int(dest.x), int(dest.y + ts)})
 			}
 
 			// Left
@@ -731,14 +786,7 @@ main :: proc() {
 					ts,
 				}
 				
-				pdest := Rect {
-					dest.x - 1,
-					dest.y,
-					1,
-					ts,
-				}
-
-				rl.ImageDraw(&atlas, t_img, psource, pdest, rl.WHITE)
+				draw_image(&atlas, t_img, psource, {int(dest.x - 1), int(dest.y)})
 			}
 
 			// Right
@@ -750,14 +798,7 @@ main :: proc() {
 					ts,
 				}
 				
-				pdest := Rect {
-					dest.x + ts,
-					dest.y,
-					1,
-					ts,
-				}
-
-				rl.ImageDraw(&atlas, t_img, psource, pdest, rl.WHITE)
+				draw_image(&atlas, t_img, psource, {int(dest.x + ts), int(dest.y)})
 			}
 
 			at := Atlas_Tile_Rect {
@@ -770,10 +811,16 @@ main :: proc() {
 	}
 
 	if ATLAS_CROP {
-		rl.ImageAlphaCrop(&atlas, 0)	
+	//	rl.ImageAlphaCrop(&atlas, 0)	
 	}
 
-	rl.ExportImage(atlas, ATLAS_PNG_OUTPUT_PATH)
+	img_write :: proc "c" (ctx: rawptr, data: rawptr, size: c.int) {
+		context = runtime.default_context()
+		os.write_entire_file(ATLAS_PNG_OUTPUT_PATH, slice.bytes_from_ptr(data, int(size)))
+	}
+	image.write_png_to_func(img_write, nil, ATLAS_SIZE, ATLAS_SIZE, 4, raw_data(atlas_pixels), ATLAS_SIZE * size_of(Color))
+
+//	rl.ExportImage(atlas, ATLAS_PNG_OUTPUT_PATH)
 
 	f, _ := os.open(ATLAS_ODIN_OUTPUT_PATH, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 	defer os.close(f)
