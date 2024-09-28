@@ -122,6 +122,89 @@ Tileset :: struct {
 	offset: Vec2i,
 }
 
+Animation :: struct {
+	name: string,
+	first_texture: string,
+	last_texture: string,
+	document_size: Vec2i,
+	loop_direction: ase.Tag_Loop_Dir,
+	repeat: u16,
+}
+
+Image :: struct {
+	data: []Color,
+	width: int,
+	height: int,
+}
+
+draw_image :: proc(to: ^Image, from: Image, source: Rect, pos: Vec2i) {
+	for sxf in 0..<source.width {
+		for syf in 0..<source.height {
+			sx := int(source.x+sxf)
+			sy := int(source.y+syf)
+
+			if sx < 0 || sx >= from.width {
+				continue
+			}
+
+			if sy < 0 || sy >= from.height {
+				continue
+			}
+
+			dx := pos.x + int(sxf)
+			dy := pos.y + int(syf)
+
+			if dx < 0 || dx >= to.width {
+				continue
+			}
+
+			if dy < 0 || dy >= to.height {
+				continue
+			}
+
+			from_idx := sy * from.width + sx
+			to_idx := dy * to.width + dx
+			to.data[to_idx] = from.data[from_idx]
+		}
+	}
+}
+
+draw_image_rectangle :: proc(to: ^Image, rect: Rect, color: Color) {
+	for dxf in 0..<rect.width {
+		for dyf in 0..<rect.height {
+			dx := int(rect.x) + int(dxf)
+			dy := int(rect.y) + int(dyf)
+
+			if dx < 0 || dx >= to.width {
+				continue
+			}
+
+			if dy < 0 || dy >= to.height {
+				continue
+			}
+
+			to_idx := dy * to.width + dx
+			to.data[to_idx] = color
+		}
+	}
+}
+
+get_image_pixel :: proc(img: Image, x: int, y: int) -> Color {
+	idx := img.width * y + x
+
+	if idx < 0 || idx >= len(img.data) {
+		return {}
+	}
+
+	return img.data[idx]
+}
+
+// Returns the format I want for names in atlas.odin. Takes the name from a path
+// and turns it from player_jump.png to Player_Jump.
+asset_name :: proc(path: string) -> string {
+	return fmt.tprintf("%s", strings.to_ada_case(slashpath.name(slashpath.base(path))))
+}
+
 // Loads a tileset. Currently only supports .ase tilesets
 load_tileset :: proc(filename: string, t: ^Tileset) {
 	data, data_ok := os.read_entire_file(filename)
@@ -183,21 +266,6 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 			}
 		}
 	}
-}
-
-Animation :: struct {
-	name: string,
-	first_texture: string,
-	last_texture: string,
-	document_size: Vec2i,
-	loop_direction: ase.Tag_Loop_Dir,
-	repeat: u16,
-}
-
-// Returns the format I want for names in atlas.odin. Takes the name from a path
-// and turns it from player_jump.png to Player_Jump.
-asset_name :: proc(path: string) -> string {
-	return fmt.tprintf("%s", strings.to_ada_case(slashpath.name(slashpath.base(path))))
 }
 
 load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data, animations: ^[dynamic]Animation) {
@@ -398,74 +466,6 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 		append(animations, a)
 	}
-}
-
-Image :: struct {
-	data: []Color,
-	width: int,
-	height: int,
-}
-
-draw_image :: proc(to: ^Image, from: Image, source: Rect, pos: Vec2i) {
-	for sxf in 0..<source.width {
-		for syf in 0..<source.height {
-			sx := int(source.x+sxf)
-			sy := int(source.y+syf)
-
-			if sx < 0 || sx >= from.width {
-				continue
-			}
-
-			if sy < 0 || sy >= from.height {
-				continue
-			}
-
-			dx := pos.x + int(sxf)
-			dy := pos.y + int(syf)
-
-			if dx < 0 || dx >= to.width {
-				continue
-			}
-
-			if dy < 0 || dy >= to.height {
-				continue
-			}
-
-			from_idx := sy * from.width + sx
-			to_idx := dy * to.width + dx
-			to.data[to_idx] = from.data[from_idx]
-		}
-	}
-}
-
-draw_image_rectangle :: proc(to: ^Image, rect: Rect, color: Color) {
-	for dxf in 0..<rect.width {
-		for dyf in 0..<rect.height {
-			dx := int(rect.x) + int(dxf)
-			dy := int(rect.y) + int(dyf)
-
-			if dx < 0 || dx >= to.width {
-				continue
-			}
-
-			if dy < 0 || dy >= to.height {
-				continue
-			}
-
-			to_idx := dy * to.width + dx
-			to.data[to_idx] = color
-		}
-	}
-}
-
-get_image_pixel :: proc(img: Image, x: int, y: int) -> Color {
-	idx := img.width * y + x
-
-	if idx < 0 || idx >= len(img.data) {
-		return {}
-	}
-
-	return img.data[idx]
 }
 
 load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data) {
