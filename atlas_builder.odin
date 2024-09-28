@@ -16,8 +16,8 @@ import "core:unicode/utf8"
 import "core:image/png"
 import "vendor:stb/rect_pack"
 import "vendor:stb/image"
+import stbtt "vendor:stb/truetype"
 import ase "aseprite"
-import rl "vendor:raylib"
 
 // Size of atlas in NxN pixels. Note: The outputted atlas PNG is cropped to the visible pixels.
 ATLAS_SIZE :: 512
@@ -54,8 +54,11 @@ FONT_FILENAME :: "font.ttf"
 FONT_SIZE :: 32
 
 Vec2i :: [2]int
+Vec2 :: [2]f32
 
-Rect :: rl.Rectangle
+Rect :: struct {
+	x, y, width, height: f32,
+}
 Color :: [4]u8
 
 Atlas_Texture_Rect :: struct {
@@ -74,9 +77,16 @@ Atlas_Tile_Rect :: struct {
 	coord: Vec2i,
 }
 
+Glyph :: struct {
+	value: rune,
+	image: Image,
+	offset: Vec2i,
+	advance_x: int,
+}
+
 Atlas_Glyph :: struct {
 	rect: Rect,
-	glyph: rl.GlyphInfo,
+	glyph: Glyph,
 }
 
 asset_name :: proc(path: string) -> string {
@@ -533,11 +543,9 @@ main :: proc() {
 	rect_pack.init_target(&rc, ATLAS_SIZE, ATLAS_SIZE, raw_data(rc_nodes[:]), ATLAS_SIZE)
 
 	letters := utf8.string_to_runes(LETTERS_IN_FONT)
-	num_letters := len(letters)
-	
 
 	pack_rects: [dynamic]rect_pack.Rect
-	glyphs: [^]rl.GlyphInfo
+	glyphs: []Glyph
 
 	PackRectType :: enum {
 		Texture,
@@ -573,16 +581,48 @@ main :: proc() {
 	}
 
 	if font_data, ok := os.read_entire_file(FONT_FILENAME); ok {
-		glyphs = rl.LoadFontData(&font_data[0], i32(len(font_data)), FONT_SIZE, raw_data(letters), i32(num_letters), .BITMAP)
+		fi: stbtt.fontinfo
+		if stbtt.InitFont(&fi, raw_data(font_data), 0) {
+			scale_factor := stbtt.ScaleForPixelHeight(&fi, FONT_SIZE)
 
-		for i in 0..<len(letters) {
-			g := glyphs[i]
+			ascent: c.int
+			stbtt.GetFontVMetrics(&fi, &ascent, nil, nil)
 
-			append(&pack_rects, rect_pack.Rect {
-				id = make_pack_rect_id(i32(i), .Glyph),
-				w = rect_pack.Coord(g.image.width) + 1,
-				h = rect_pack.Coord(g.image.height) + 1,
-			})
+			glyphs = make([]Glyph, len(letters))
+
+			for r, r_idx in letters {
+				w, h, ox, oy: c.int
+				data := stbtt.GetCodepointBitmap(&fi, scale_factor, scale_factor, r, &w, &h, &ox, &oy)
+				advance_x: c.int
+				stbtt.GetCodepointHMetrics(&fi, r, &advance_x, nil)
+
+				rgba_data := make([]Color, w*h)
+
+				for i in 0..<w*h {
+					a := data[i]
+					rgba_data[i].r = 255
+					rgba_data[i].g = 255
+					rgba_data[i].b = 255
+					rgba_data[i].a = a
+				}
+
+				glyphs[r_idx] = {
+					image = {
+						data = rgba_data,
+						width = int(w),
+						height = int(h),
+					},
+					value = r,
+					offset = {int(ox), int(f32(oy) + f32(ascent)*scale_factor)},
+					advance_x = int(f32(advance_x)*scale_factor),
+				}
+
+				append(&pack_rects, rect_pack.Rect {
+					id = make_pack_rect_id(i32(r_idx), .Glyph),
+					w = rect_pack.Coord(w) + 2,
+					h = rect_pack.Coord(h) + 2,
+				})
+			}
 		}
 	} else {
 		fmt.printfln("No %s file found", FONT_FILENAME)
@@ -599,7 +639,7 @@ main :: proc() {
 	if tileset.pixels_size.x != 0 && tileset.pixels_size.y != 0 {
 		h := tileset.pixels_size.y / TILE_SIZE
 		w := tileset.pixels_size.x / TILE_SIZE
-		top_left: rl.Vector2 = {-f32(tileset.offset.x), -f32(tileset.offset.y)}
+		top_left := Vec2 {-f32(tileset.offset.x), -f32(tileset.offset.y)}
 
 		t_img := Image {
 			data = tileset.pixels,
@@ -665,7 +705,7 @@ main :: proc() {
 		switch type {
 		case .ShapesTexture:
 			shapes_texture_rect = Rect {f32(rp.x), f32(rp.y), 10, 10}
-			draw_image_rectangle(&atlas, shapes_texture_rect, rl.WHITE)
+			draw_image_rectangle(&atlas, shapes_texture_rect, {255, 255, 255, 255})
 		case .Texture:
 			idx := idx_from_rect_id(rp.id)
 
@@ -699,30 +739,12 @@ main :: proc() {
 		case .Glyph:
 			idx := idx_from_rect_id(rp.id)
 			g := glyphs[idx]
-			img_grayscale := g.image
-
-			grayscale := cast([^]u8)(img_grayscale.data)
-			img_pixels := make([]Color, img_grayscale.width*img_grayscale.height)
-
-			for i in 0..<img_grayscale.width*img_grayscale.height {
-				a := grayscale[i]
-				img_pixels[i].r = 255
-				img_pixels[i].g = 255
-				img_pixels[i].b = 255
-				img_pixels[i].a = a
-			}
-
-
-			img := Image {
-				data = img_pixels,
-				width = int(img_grayscale.width),
-				height = int(img_grayscale.height),
-			}
+			img := g.image
 
 			source := Rect {0, 0, f32(img.width), f32(img.height)}
-			dest := Rect {f32(rp.x), f32(rp.y), source.width, source.height}
+			dest := Rect {f32(rp.x) + 1, f32(rp.y) + 1, source.width, source.height}
 
-			draw_image(&atlas, img, source, {int(rp.x), int(rp.y)})
+			draw_image(&atlas, img, source, {int(rp.x) + 1, int(rp.y) + 1})
 
 			ag := Atlas_Glyph {
 				rect = dest,
@@ -736,7 +758,7 @@ main :: proc() {
 			x := f32(TILE_SIZE * ix)
 			y := f32(TILE_SIZE * iy)
 
-			top_left: rl.Vector2 = {-f32(tileset.offset.x), -f32(tileset.offset.y)}
+			top_left := Vec2 {-f32(tileset.offset.x), -f32(tileset.offset.y)}
 
 			t_img := Image {
 				data = tileset.pixels,
@@ -810,17 +832,39 @@ main :: proc() {
 		}
 	}
 
+	crop_size := Vec2i {
+		ATLAS_SIZE,
+		ATLAS_SIZE,
+	}
+
 	if ATLAS_CROP {
-	//	rl.ImageAlphaCrop(&atlas, 0)	
+		max_x, max_y: int
+
+		for c, ci in atlas_pixels {
+			x := ci % ATLAS_SIZE
+			y := ci / ATLAS_SIZE
+
+			if c != {} {
+				if x > max_x {
+					max_x = x
+				}
+
+				if y > max_y {
+					max_y = y
+				}
+			}
+		}
+
+		crop_size.x = max_x + 1
+		crop_size.y = max_y + 1
 	}
 
 	img_write :: proc "c" (ctx: rawptr, data: rawptr, size: c.int) {
 		context = runtime.default_context()
 		os.write_entire_file(ATLAS_PNG_OUTPUT_PATH, slice.bytes_from_ptr(data, int(size)))
 	}
-	image.write_png_to_func(img_write, nil, ATLAS_SIZE, ATLAS_SIZE, 4, raw_data(atlas_pixels), ATLAS_SIZE * size_of(Color))
 
-//	rl.ExportImage(atlas, ATLAS_PNG_OUTPUT_PATH)
+	image.write_png_to_func(img_write, nil, c.int(crop_size.x), c.int(crop_size.y), 4, raw_data(atlas_pixels), ATLAS_SIZE * size_of(Color))
 
 	f, _ := os.open(ATLAS_ODIN_OUTPUT_PATH, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 	defer os.close(f)
@@ -953,7 +997,7 @@ main :: proc() {
 
 	for ag in atlas_glyphs {
 		fmt.fprintf(f, "\t{{ rect = {{%v, %v, %v, %v}}, value = %q, offset_x = %v, offset_y = %v, advance_x = %v}},\n",
-			ag.rect.x, ag.rect.y, ag.rect.width, ag.rect.height, ag.glyph.value, ag.glyph.offsetX, ag.glyph.offsetY, ag.glyph.advanceX)
+			ag.rect.x, ag.rect.y, ag.rect.width, ag.rect.height, ag.glyph.value, ag.glyph.offset.x, ag.glyph.offset.y, ag.glyph.advance_x)
 	}
 
 	fmt.fprintln(f, "}")

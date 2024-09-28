@@ -2,6 +2,7 @@
 *.sublime-workspace
 *.pdb
 *.exp
+*.rdi
 *.obj
 *.lib
 *.bin
