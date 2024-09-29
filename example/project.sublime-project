@@ -22,7 +22,7 @@
 			},
 			"linux": {
 				"shell_cmd": "./run.bat",
-			}
+			},
 		}
 	],
 	"settings":

@@ -21,6 +21,7 @@ import "core:slice"
 import "core:strings"
 import "core:time"
 import "core:unicode/utf8"
+import "core:log"
 import "vendor:stb/image"
 import "vendor:stb/rect_pack"
 import ase "aseprite"
@@ -217,19 +218,20 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 	data, data_ok := os.read_entire_file(filename)
 
 	if !data_ok {
-		fmt.printf("Failed loading tileset %v\n", filename)
+		log.error("Failed loading tileset", filename)
 		return
 	}
 
 	defer delete(data)
 	doc: ase.Document
-	defer ase.destroy_doc(&doc)
 
 	_, umerr := ase.unmarshal(data[:], &doc)
 	if umerr != nil {
-		fmt.println(umerr)
+		log.error("Aseprite unmarshal error", umerr)
 		return
 	}
+
+	defer ase.destroy_doc(&doc)
 
 	indexed := doc.header.color_depth == .Indexed
 	palette: ase.Palette_Chunk
@@ -245,7 +247,7 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 	}
 	
 	if indexed && len(palette.entries) == 0 {
-		fmt.println("Document is indexed, but found no palette!")
+		log.error("Document is indexed, but found no palette!")
 	}
 
 	for f in doc.frames {
@@ -286,9 +288,11 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 	_, umerr := ase.unmarshal(data[:], &doc)
 	if umerr != nil {
-		fmt.println(umerr)
+		log.error("Aseprite unmarshal error", umerr)
 		return
 	}
+
+	defer ase.destroy_doc(&doc)
 
 	document_rect := Rect {
 		0, 0,
@@ -313,7 +317,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	}
 	
 	if indexed && len(palette.entries) == 0 {
-		fmt.println("Document is indexed, but found no palette!")
+		log.error("Document is indexed, but found no palette!")
 	}
 
 	visible_layers := make(map[u16]bool)
@@ -332,7 +336,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	}
 
 	if len(visible_layers) == 0 {
-		fmt.println("No visible layers in document!")
+		log.error("No visible layers in document", filename)
 		return
 	}
 	
@@ -479,7 +483,7 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	data, data_ok := os.read_entire_file(filename)
 
 	if !data_ok {
-		fmt.printf("Failed loading tileset %v\n", filename)
+		log.error("Failed loading tileset", filename)
 		return
 	}
 
@@ -488,14 +492,14 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	img, err := png.load_from_bytes(data)
 
 	if err != nil {
-		fmt.println(err)
+		log.error("PNG load error", err)
 		return
 	}
 
 	defer png.destroy(img)
 
 	if img.depth != 8 && img.channels != 4 {
-		fmt.println("Only 8 bpp, 4 channels PNG supported (this can probably be fixed by doing some work in `load_png_texture_data`")
+		log.error("Only 8 bpp, 4 channels PNG supported (this can probably be fixed by doing some work in `load_png_texture_data`")
 		return
 	}
 
@@ -511,7 +515,11 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	append(textures, td)
 }
 
+default_context: runtime.Context
+
 main :: proc() {
+	context.logger = log.create_console_logger(opt = {.Level})
+	default_context = context
 	start_time := time.now()
 	textures: [dynamic]Texture_Data
 	animations: [dynamic]Animation
@@ -519,7 +527,7 @@ main :: proc() {
 	dir_path_to_file_infos :: proc(path: string) -> []os.File_Info {
 		d, derr := os.open(path, os.O_RDONLY)
 		if derr != nil {
-			fmt.panicf("No %s folder found", path)
+			log.panicf("No %s folder found", path)
 		}
 		defer os.close(d)
 
@@ -528,10 +536,10 @@ main :: proc() {
 			defer os.file_info_delete(file_info)
 
 			if ferr != nil {
-				panic("stat failed")
+				log.panic("stat failed")
 			}
 			if !file_info.is_dir {
-				panic("not a directory")
+				log.panic("not a directory")
 			}
 		}
 
@@ -649,7 +657,7 @@ main :: proc() {
 			}
 		}
 	} else {
-		fmt.printfln("No %s file found", FONT_FILENAME)
+		log.warnf("No %s file found", FONT_FILENAME)
 	}
 
 	for t, idx in textures {
@@ -708,7 +716,7 @@ main :: proc() {
 	rect_pack_res := rect_pack.pack_rects(&rc, raw_data(pack_rects), i32(len(pack_rects)))
 
 	if rect_pack_res != 1 {
-		fmt.println("failed to pack some rects")
+		log.error("Failed to pack some rects. ATLAS_SIZE too small?")
 	}
 
 	atlas_pixels := make([]Color, ATLAS_SIZE*ATLAS_SIZE)
@@ -884,7 +892,7 @@ main :: proc() {
 	}
 
 	img_write :: proc "c" (ctx: rawptr, data: rawptr, size: c.int) {
-		context = runtime.default_context()
+		context = default_context
 		os.write_entire_file(ATLAS_PNG_OUTPUT_PATH, slice.bytes_from_ptr(data, int(size)))
 	}
 
@@ -1028,5 +1036,5 @@ main :: proc() {
 	fmt.fprintln(f, "}")
 
 	run_time_ms := time.duration_milliseconds(time.diff(start_time, time.now()))
-	fmt.printfln(ATLAS_PNG_OUTPUT_PATH + " and " + ATLAS_ODIN_OUTPUT_PATH  + " created in %.2f ms", run_time_ms)
+	log.infof(ATLAS_PNG_OUTPUT_PATH + " and " + ATLAS_ODIN_OUTPUT_PATH  + " created in %.2f ms", run_time_ms)
 }
