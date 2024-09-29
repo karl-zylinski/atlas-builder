@@ -267,7 +267,7 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 								t.pixels[idx] = Color(palette.entries[u32(p)].color)
 							}
 						} else {
-							t.pixels = slice.clone(transmute([]Color)(cl.pixel))
+							t.pixels = slice.clone(slice.reinterpret([]Color, cl.pixel))
 						}
 
 						t.offset = {int(cv.x), int(cv.y)}
@@ -408,7 +408,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 					cel_pixels[idx] = Color(palette.entries[u32(p)].color)
 				}
 			} else {
-				cel_pixels = transmute([]Color)(cl.pixel)
+				cel_pixels = slice.reinterpret([]Color, cl.pixel)
 			}
 
 			source := Rect {
@@ -511,7 +511,7 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		document_size = {img.width, img.height},
 		duration = 0,
 		name = asset_name(filename),
-		pixels = slice.clone(transmute([]Color)(img.pixels.buf[:])),
+		pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:])),
 	}
 
 	append(textures, td)
