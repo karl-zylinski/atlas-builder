@@ -5,6 +5,8 @@ This is a program that can generate a texture based on a bunch of other textures
 
 ![ezgif-6-c5e3c6bb73](https://github.com/user-attachments/assets/9b408c22-9928-4d14-9184-24c8629f6cc9)
 
+Uses aseprite loader by blob1807: https://github.com/blob1807/odin-aseprite
+
 ## Overview
 
 This atlas builder looks into a 'textures' folder for pngs, ase and aseprite files and makes an atlas from those. It outputs both `atlas.png` and `atlas.odin`. The odin file you compile as part of your game. It contains metadata about where in the atlas the textures ended up.

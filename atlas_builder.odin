@@ -6,6 +6,8 @@ metadata about where in the atlas the textures ended up.
 
 See README.md for additional documentation.
 
+Uses aseprite loader by blob1807: https://github.com/blob1807/odin-aseprite
+
 By Karl Zylinski, http://zylinski.se
 */
 
@@ -15,16 +17,16 @@ import "base:runtime"
 import "core:c"
 import "core:fmt"
 import "core:image/png"
+import "core:log"
 import "core:os"
 import "core:path/slashpath"
 import "core:slice"
 import "core:strings"
 import "core:time"
 import "core:unicode/utf8"
-import "core:log"
-import "vendor:stb/image"
-import "vendor:stb/rect_pack"
 import ase "aseprite"
+import stbim "vendor:stb/image"
+import stbrp "vendor:stb/rect_pack"
 import stbtt "vendor:stb/truetype"
 
 // ---------------------
@@ -570,13 +572,13 @@ main :: proc() {
 		}
 	}
 
-	rc: rect_pack.Context
-	rc_nodes: [ATLAS_SIZE]rect_pack.Node
-	rect_pack.init_target(&rc, ATLAS_SIZE, ATLAS_SIZE, raw_data(rc_nodes[:]), ATLAS_SIZE)
+	rc: stbrp.Context
+	rc_nodes: [ATLAS_SIZE]stbrp.Node
+	stbrp.init_target(&rc, ATLAS_SIZE, ATLAS_SIZE, raw_data(rc_nodes[:]), ATLAS_SIZE)
 
 	letters := utf8.string_to_runes(LETTERS_IN_FONT)
 
-	pack_rects: [dynamic]rect_pack.Rect
+	pack_rects: [dynamic]stbrp.Rect
 	glyphs: []Glyph
 
 	PackRectType :: enum {
@@ -649,10 +651,10 @@ main :: proc() {
 					advance_x = int(f32(advance_x)*scale_factor),
 				}
 
-				append(&pack_rects, rect_pack.Rect {
+				append(&pack_rects, stbrp.Rect {
 					id = make_pack_rect_id(i32(r_idx), .Glyph),
-					w = rect_pack.Coord(w) + 2,
-					h = rect_pack.Coord(h) + 2,
+					w = stbrp.Coord(w) + 2,
+					h = stbrp.Coord(h) + 2,
 				})
 			}
 		}
@@ -661,10 +663,10 @@ main :: proc() {
 	}
 
 	for t, idx in textures {
-		append(&pack_rects, rect_pack.Rect {
+		append(&pack_rects, stbrp.Rect {
 			id = make_pack_rect_id(i32(idx), .Texture),
-			w = rect_pack.Coord(t.source_size.x) + 1,
-			h = rect_pack.Coord(t.source_size.y) + 1,
+			w = stbrp.Coord(t.source_size.x) + 1,
+			h = stbrp.Coord(t.source_size.y) + 1,
 		})
 	}
 
@@ -698,7 +700,7 @@ main :: proc() {
 					continue
 				}
 
-				append(&pack_rects, rect_pack.Rect {
+				append(&pack_rects, stbrp.Rect {
 					id = make_pack_rect_id(make_tile_id(x, y), .Tile),
 					w = TILE_SIZE+2,
 					h = TILE_SIZE+2,
@@ -707,13 +709,13 @@ main :: proc() {
 		}
 	}
 
-	append(&pack_rects, rect_pack.Rect {
+	append(&pack_rects, stbrp.Rect {
 		id = make_pack_rect_id(0, .ShapesTexture),
 		w = 11,
 		h = 11,
 	})
 
-	rect_pack_res := rect_pack.pack_rects(&rc, raw_data(pack_rects), i32(len(pack_rects)))
+	rect_pack_res := stbrp.pack_rects(&rc, raw_data(pack_rects), i32(len(pack_rects)))
 
 	if rect_pack_res != 1 {
 		log.error("Failed to pack some rects. ATLAS_SIZE too small?")
@@ -896,7 +898,7 @@ main :: proc() {
 		os.write_entire_file(ATLAS_PNG_OUTPUT_PATH, slice.bytes_from_ptr(data, int(size)))
 	}
 
-	image.write_png_to_func(img_write, nil, c.int(crop_size.x), c.int(crop_size.y), 4, raw_data(atlas_pixels), ATLAS_SIZE * size_of(Color))
+	stbim.write_png_to_func(img_write, nil, c.int(crop_size.x), c.int(crop_size.y), 4, raw_data(atlas_pixels), ATLAS_SIZE * size_of(Color))
 
 	f, _ := os.open(ATLAS_ODIN_OUTPUT_PATH, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 	defer os.close(f)
