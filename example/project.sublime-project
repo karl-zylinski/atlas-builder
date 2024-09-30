@@ -18,11 +18,11 @@
 				"shell_cmd": "run.bat",
 			},
 			"osx": {
-				"shell_cmd": "./run.bat",
+				"shell_cmd": "sh run.sh",
 			},
 			"linux": {
-				"shell_cmd": "./run.bat",
-			}
+				"shell_cmd": "sh run.sh",
+			},
 		}
 	],
 	"settings":
