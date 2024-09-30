@@ -2,14 +2,12 @@ package aseprite_file_handler
 
 import "base:intrinsics"
 import "core:io"
-import "core:fmt"
 import "core:log"
 import "core:bytes"
 import "core:compress/zlib"
-_::fmt
-_::log
 
-read_file_header :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> (h: File_Header, err: Unmarshal_Error) {
+
+read_file_header :: proc(r: io.Reader, rt: ^int) -> (h: File_Header, err: Unmarshal_Error) {
     h.size = read_dword(r, rt) or_return
 
     if io.Stream_Mode.Size in io.query(r) {
@@ -66,10 +64,7 @@ read_old_palette_256 :: proc(r: io.Reader, rt: ^int, allocator := context.alloca
 
         packet.colors = make([]Color_RGB, count, allocator) or_return
         for &c in packet.colors {
-            // TODO: Maybe read into an array???
-            c[0] = read_byte(r, rt) or_return
-            c[1] = read_byte(r, rt) or_return
-            c[2] = read_byte(r, rt) or_return
+            read_bytes(r, c[:], rt) or_return
         }
     }
     return
@@ -89,10 +84,7 @@ read_old_palette_64 :: proc(r: io.Reader, rt: ^int, allocator := context.allocat
 
         packet.colors = make([]Color_RGB, count, allocator) or_return
         for &c in packet.colors {
-            // TODO: Maybe read into an array???
-            c[0] = read_byte(r, rt) or_return
-            c[1] = read_byte(r, rt) or_return
-            c[2] = read_byte(r, rt) or_return
+            read_bytes(r, c[:], rt) or_return
         }
     }
     return
@@ -130,8 +122,8 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
         cel: Raw_Cel
         cel.width = read_word(r, rt) or_return
         cel.height = read_word(r, rt) or_return
-        cel.pixel = make([]PIXEL, int(cel.width * cel.height)) or_return
-        read_bytes(r, cel.pixel[:], rt) or_return
+        cel.pixels = make([]PIXEL, int(cel.width * cel.height)) or_return
+        read_bytes(r, cel.pixels[:], rt) or_return
         chunk.cel = cel
 
     case .Linked_Cel:
@@ -150,16 +142,17 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
 
         buf: bytes.Buffer
         defer bytes.buffer_destroy(&buf)
-        data := make([]byte, com_size) or_return
 
+        data := make([]byte, com_size) or_return
         defer delete(data)
+
         read_bytes(r, data[:], rt) or_return
 
         exp_size := color_depth / 8 * int(cel.height) * int(cel.width)
         zlib.inflate(data[:], &buf, expected_output_size=exp_size) or_return
 
-        cel.pixel = make([]byte, exp_size) or_return
-        copy(cel.pixel[:], buf.buf[:])
+        cel.pixels = make([]byte, exp_size) or_return
+        copy(cel.pixels[:], buf.buf[:])
 
         chunk.cel = cel
 
@@ -276,10 +269,7 @@ read_tags :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> (ch
         tag.loop_direction = Tag_Loop_Dir(read_byte(r, rt) or_return)
         tag.repeat = read_word(r, rt) or_return
         read_skip(r, 6, rt) or_return
-        // TODO: Maybe read into an array???
-        tag.tag_color[0] = read_byte(r, rt) or_return
-        tag.tag_color[1] = read_byte(r, rt) or_return
-        tag.tag_color[2] = read_byte(r, rt) or_return
+        read_bytes(r, tag.tag_color[:], rt) or_return
         read_byte(r, rt) or_return
         tag.name = read_string(r, rt, allocator) or_return
     }
@@ -295,12 +285,8 @@ read_palette :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> 
     read_skip(r, 8, rt) or_return
 
     for &entry in chunk.entries {
-        // TODO: Maybe read into an array???
         pf := transmute(Pal_Flags)read_word(r, rt) or_return
-        entry.color[0] = read_byte(r, rt) or_return
-        entry.color[1] = read_byte(r, rt) or_return
-        entry.color[2] = read_byte(r, rt) or_return
-        entry.color[3] = read_byte(r, rt) or_return
+        read_bytes(r, entry.color[:], rt) or_return
 
         if .Has_Name in pf {
             entry.name = read_string(r, rt, allocator) or_return
@@ -315,21 +301,19 @@ read_user_data :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -
     if .Text in flags {
         chunk.text = read_string(r, rt) or_return
     }
+
     if .Color in flags {
-        // TODO: Maybe read into an array???
         colour: Color_RGBA
-        colour[0] = read_byte(r, rt) or_return
-        colour[1] = read_byte(r, rt) or_return
-        colour[2] = read_byte(r, rt) or_return
-        colour[3] = read_byte(r, rt) or_return 
+        read_bytes(r, colour[:], rt) or_return
         chunk.color = colour
     }
+    
     if .Properties in flags {
         //map_size := read_dword(r, rt) or_return
         read_skip(r, 4, rt) or_return
         map_num := read_dword(r, rt) or_return
         maps := make(Properties_Map, map_num) or_return
-        for _ in 0..<int(map_num) {
+        for _ in 0..<map_num {
             key := read_dword(r, rt) or_return
 
             prop_num := int(read_dword(r, rt) or_return)
@@ -349,12 +333,13 @@ read_user_data :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -
     return
 }
 
-read_slice :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> (chunk: Slice_Chunk, err: Unmarshal_Error) {
+read_slice :: proc(r: io.Reader, rt: ^int, alloc := context.allocator) -> (chunk: Slice_Chunk, err: Unmarshal_Error) {
+    context.allocator = alloc
     keys := int(read_dword(r, rt) or_return)
     chunk.flags = transmute(Slice_Flags)read_dword(r, rt) or_return
     read_dword(r, rt) or_return
     chunk.name = read_string(r, rt) or_return
-    chunk.keys = make([]Slice_Key, keys, allocator) or_return
+    chunk.keys = make([]Slice_Key, keys) or_return
 
     for &key in chunk.keys {
         key.frame_num = read_dword(r, rt) or_return
@@ -384,7 +369,7 @@ read_slice :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> (c
 
 read_tileset :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> (chunk: Tileset_Chunk, err: Unmarshal_Error) {
     chunk.id = read_dword(r, rt) or_return
-    flags := transmute(Tileset_Flags)read_dword(r, rt) or_return
+    chunk.flags = transmute(Tileset_Flags)read_dword(r, rt) or_return
     chunk.num_of_tiles = read_dword(r, rt) or_return
     chunk.width = read_word(r, rt) or_return
     chunk.height = read_word(r, rt) or_return
@@ -392,29 +377,32 @@ read_tileset :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> 
     read_skip(r, 14, rt)
     chunk.name = read_string(r, rt) or_return
 
-    if .Include_Link_To_External_File in flags {
+    if .Include_Link_To_External_File in chunk.flags {
         ex: Tileset_External
         ex.file_id = read_dword(r, rt) or_return
         ex.tileset_id = read_dword(r, rt) or_return
         chunk.external = ex
     }
-    if .Include_Tiles_Inside_This_File in flags {
-        tc: Tileset_Compressed
+    if .Include_Tiles_Inside_This_File in chunk.flags {
         size := int(read_dword(r, rt) or_return)
 
         buf: bytes.Buffer
-        defer bytes.buffer_destroy(&buf)
 
         data := make([]byte, size, allocator) or_return
         defer delete(data)
-        read_bytes(r, data[:], rt) or_return
+        read_bytes(r, data, rt) or_return
 
+        zlib.inflate_from_byte_array(data, &buf) or_return
+
+        res := len(buf.buf)-buf.off
         exp_size := int(chunk.width) * int(chunk.height) * int(chunk.num_of_tiles)
-        zlib.inflate(data[:], &buf, expected_output_size=exp_size) or_return
 
-        tc = make(Tileset_Compressed, exp_size, allocator) or_return
-        copy(tc[:], cast(Tileset_Compressed)buf.buf[:])
-        chunk.compressed = tc
+        if (res != exp_size) && (res != exp_size*2) && (res != exp_size*4) {
+            fast_log(.Error, "Expected size not equal to uncompressed size")
+            return chunk, Read_Error(Read_Errors.Comp_Tileset_Not_Expected_Size)
+        }
+
+        chunk.compressed = (Tileset_Compressed)(buf.buf[buf.off:])
 
     }
     return

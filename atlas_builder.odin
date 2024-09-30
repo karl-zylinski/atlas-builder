@@ -119,7 +119,7 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 	doc: ase.Document
 	defer ase.destroy_doc(&doc)
 
-	_, umerr := ase.unmarshal(data[:], &doc)
+	umerr := ase.unmarshal(&doc, data[:])
 	if umerr != nil {
 		fmt.println(umerr)
 		return
@@ -149,7 +149,7 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 					if cl, ok := cv.cel.(ase.Com_Image_Cel); ok {
 						if indexed {
 							t.pixels = make([]rl.Color, int(cl.width) * int(cl.height))
-							for p, idx in cl.pixel {
+							for p, idx in cl.pixels {
 								if p == 0 {
 									continue
 								}
@@ -157,7 +157,7 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 								t.pixels[idx] = rl.Color(palette.entries[u32(p)].color)
 							}
 						} else {
-							t.pixels = slice.clone(transmute([]rl.Color)(cl.pixel))
+							t.pixels = slice.clone(transmute([]rl.Color)(cl.pixels))
 						}
 
 						t.offset = {int(cv.x), int(cv.y)}
@@ -187,7 +187,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 	doc: ase.Document
 
-	_, umerr := ase.unmarshal(data[:], &doc)
+	umerr := ase.unmarshal(&doc, data[:])
 	if umerr != nil {
 		fmt.println(umerr)
 		return
@@ -299,7 +299,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 			if indexed {
 				cel_pixels = make([]rl.Color, int(cl.width) * int(cl.height))
-				for p, idx in cl.pixel {
+				for p, idx in cl.pixels {
 					if p == 0 {
 						continue
 					}
@@ -307,7 +307,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 					cel_pixels[idx] = rl.Color(palette.entries[u32(p)].color)
 				}
 			} else {
-				cel_pixels = transmute([]rl.Color)(cl.pixel)
+				cel_pixels = transmute([]rl.Color)(cl.pixels)
 			}
 
 			source := rl.Rectangle {

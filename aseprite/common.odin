@@ -1,32 +1,39 @@
 package aseprite_file_handler
 
-import "core:fmt"
-import "core:log"
-_ :: fmt
-_ :: log
+import "base:runtime"
+import "core:mem/virtual"
+
+@(require) import "core:log"
+
 
 @(private)
-destroy_value :: proc(p: ^Property_Value, alloc := context.allocator) {
+destroy_value :: proc(p: ^Property_Value, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     context.allocator = alloc
     #partial switch &val in p {
     case string:
-        // FIXME: Strings fail to free sometimes.
-        delete(val)
+        delete(val) or_return
     case UD_Vec:
         for &v in val {
-            destroy_value(&v)
+            destroy_value(&v) or_return
         }
-        delete(val)
+        delete(val) or_return
 
     case Properties:
         for _, &v in val {
-            destroy_value(&v)
+            destroy_value(&v) or_return
         }
-        delete(val)
+        delete(val) or_return
     }
+
+    return
 }
 
-destroy_doc :: proc(doc: ^Document, alloc := context.allocator) {
+destroy_doc :: proc(doc: ^Document) {
+    virtual.arena_destroy(&doc.arena)
+}
+
+
+destroy_doc_alloc :: proc(doc: ^Document, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     context.allocator = alloc
     for &frame in doc.frames {
         for &chunk in frame.chunks {
@@ -49,9 +56,9 @@ destroy_doc :: proc(doc: ^Document, alloc := context.allocator) {
                 switch &cel in v.cel {
                 case Linked_Cel:
                 case Raw_Cel:
-                    delete(cel.pixel)
+                    delete(cel.pixels)
                 case Com_Image_Cel:
-                    delete(cel.pixel)
+                    delete(cel.pixels)
                 case Com_Tilemap_Cel:
                     delete(cel.tiles)
                 }
@@ -115,8 +122,9 @@ destroy_doc :: proc(doc: ^Document, alloc := context.allocator) {
         }
         delete(frame.chunks)
     }
-    delete(doc.frames)
+    return delete(doc.frames)
 }
+
 
 destroy_chunk :: proc {
     _destroy_old_256, _destroy_old_64, _destroy_layer, _destroy_cel, 
@@ -126,112 +134,119 @@ destroy_chunk :: proc {
 }
 
 @(private)
-_destroy_old_256 :: proc(c: Old_Palette_256_Chunk) {
+_destroy_old_256 :: proc(c: Old_Palette_256_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     for pack in c {
-        delete(pack.colors)
+        delete(pack.colors, alloc) or_return
     }
-    delete(c)
+    return delete(c, alloc)
 }
 
 @(private)
-_destroy_old_64 :: proc(c: Old_Palette_64_Chunk) {
+_destroy_old_64 :: proc(c: Old_Palette_64_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     for pack in c {
-        delete(pack.colors)
+        delete(pack.colors, alloc) or_return
     }
-    delete(c)
+    return delete(c, alloc)
 }
 
 @(private)
-_destroy_layer :: proc(c: Layer_Chunk) {
-    delete(c.name)
+_destroy_layer :: proc(c: Layer_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
+    return delete(c.name, alloc)
 }
 
 @(private)
-_destroy_cel :: proc(c: Cel_Chunk) {
+_destroy_cel :: proc(c: Cel_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     switch cel in c.cel {
     case Linked_Cel:
     case Raw_Cel:
-        delete(cel.pixel)
+        delete(cel.pixels, alloc) or_return
     case Com_Image_Cel:
-        delete(cel.pixel)
+        delete(cel.pixels, alloc) or_return
     case Com_Tilemap_Cel:
-        delete(cel.tiles)
+        delete(cel.tiles, alloc) or_return
     }
+    return
 }
 
 @(private)
-_destroy_cel_extra :: proc(c: Cel_Extra_Chunk) {}
+_destroy_cel_extra :: proc(c: Cel_Extra_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
+    return
+}
 
 @(private)
-_destroy_color_profile :: proc(c: Color_Profile_Chunk) {
+_destroy_color_profile :: proc(c: Color_Profile_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     switch icc in c.icc {
     case ICC_Profile:
-        delete(icc)
+        delete(icc, alloc) or_return
     }
+    return
 }
 
 @(private)
-_destroy_external_files :: proc(c: External_Files_Chunk) {
+_destroy_external_files :: proc(c: External_Files_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     for e in c {
-        delete(e.file_name_or_id)
+        delete(e.file_name_or_id, alloc) or_return
     }
-    delete(c)
+    return delete(c, alloc)
 }
 
 @(private)
-_destroy_mask :: proc(c: Mask_Chunk) {
-    delete(c.name)
-    delete(c.bit_map_data)
+_destroy_mask :: proc(c: Mask_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
+    delete(c.name, alloc) or_return
+    return delete(c.bit_map_data, alloc)
 }
 
 @(private)
-_destroy_path :: proc(c: Path_Chunk) {}
+_destroy_path :: proc(c: Path_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
+    return
+}
 
 @(private)
-_destroy_tags :: proc(c: Tags_Chunk) {
+_destroy_tags :: proc(c: Tags_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     for t in c {
-        delete(t.name)
+        delete(t.name, alloc) or_return
     }
-    delete(c)
+    return delete(c, alloc)
 }
 
 @(private)
-_destroy_palette :: proc(c: Palette_Chunk) {
+_destroy_palette :: proc(c: Palette_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     for e in c.entries {
         switch s in e.name {
-        case string: delete(s)
+        case string: delete(s, alloc) or_return
         }
     }
-    delete(c.entries)
+    return delete(c.entries, alloc)
 }
 
 @(private)
-_destroy_user_data :: proc(c: User_Data_Chunk) {
+_destroy_user_data :: proc(c: User_Data_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     switch &s in c.text {
     case string:
-        delete(s)
+        delete(s, alloc) or_return
     }
 
     switch &m in c.maps {
     case Properties_Map:
         for _, &val in m {
-            destroy_value(&val)
+            destroy_value(&val, alloc) or_return
         }
-        delete_map(m)
+        delete_map(m) or_return
     }
+    return
 }
 
 @(private)
-_destroy_slice :: proc(c: Slice_Chunk) {
-    delete(c.name)
-    delete(c.keys)
+_destroy_slice :: proc(c: Slice_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
+    delete(c.name, alloc) or_return
+    return delete(c.keys, alloc)
 }
 
 @(private)
-_destroy_tileset :: proc(c: Tileset_Chunk) {
-    delete(c.name)
+_destroy_tileset :: proc(c: Tileset_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     switch v in c.compressed {
     case Tileset_Compressed:
-        delete(v)
+        delete(v, alloc) or_return
     }
+    return delete(c.name, alloc)
 }

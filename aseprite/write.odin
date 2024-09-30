@@ -1,11 +1,9 @@
 package aseprite_file_handler
 
 import "core:io"
-import "core:fmt"
 import "core:log"
 import "core:encoding/endian"
-_::fmt
-_::log
+
 
 write_bool :: proc(w: io.Writer, data: bool, size: ^int) -> (written: int, err: Write_Error) { 
     return write_byte(w, u8(data), size)
@@ -134,7 +132,6 @@ write_string :: proc(w: io.Writer, data: STRING, size: ^int) -> (written: int, e
     }
 
     str := transmute([]u8)data
-    //fmt.println(data, str)
     written += write_bytes(w, str[:], size) or_return
     if written != 2 + len(data) {
         err = .Wrong_Write_Size
@@ -173,8 +170,8 @@ write_rect :: proc(w: io.Writer, data: RECT, size: ^int) -> (written: int, err: 
 }
 
 write_uuid:: proc(w: io.Writer, data: UUID, size: ^int) -> (written: int, err: Write_Error) { 
-    data := cast([]u8)data
-    written = io.write(w, data[:], size) or_return
+    t := data
+    written = io.write(w, t[:], size) or_return
     if written != 16 {
         err = .Wrong_Write_Size
     }
