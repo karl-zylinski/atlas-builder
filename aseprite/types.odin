@@ -5,14 +5,11 @@ import "base:runtime"
 import "core:io"
 import "core:os"
 import "core:math/fixed"
+import "core:mem/virtual"
 import "core:compress/zlib"
 import vzlib "vendor:zlib"
 
 //https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md
-
-// TODO: Whole File rework.
-// Anything set by a flag should be a Maybe(). 
-// Only Size/Lengths that can't be gotten by len() are set.
 
 Unmarshal_Errors :: enum {
     None,
@@ -43,6 +40,7 @@ Read_Errors :: enum {
     Wrong_Read_Size,
     Array_To_Small,
     Unable_Make_Seeker,
+    Comp_Tileset_Not_Expected_Size,
 }
 Read_Error :: union #shared_nil {Read_Errors, io.Error, runtime.Allocator_Error}
 
@@ -124,7 +122,7 @@ PIXEL :: u8
 TILE  :: union {BYTE, WORD, DWORD}
 
 // of size 16
-UUID :: distinct []BYTE
+UUID :: [16]BYTE
 
 Color_RGB :: [3]BYTE
 Color_RGBA :: [4]BYTE
@@ -132,6 +130,7 @@ Color_RGBA :: [4]BYTE
 Document :: struct {
     header: File_Header,
     frames: []Frame,
+    arena: virtual.Arena `fmt:"-"`,
 }
 
 Frame :: struct {
@@ -283,23 +282,23 @@ Layer_Chunk :: struct {
 Raw_Cel :: struct{
     width: WORD, 
     height: WORD, 
-    pixel: []PIXEL,
+    pixels: []PIXEL
 }
 Linked_Cel :: distinct WORD
 // raw cel ZLIB compressed
 Com_Image_Cel :: struct{
     width: WORD, 
     height: WORD, 
-    pixel: []PIXEL,
+    pixels: []PIXEL
 }
 Tile_ID :: enum(DWORD) { byte=0xfffffff1, word=0xffff1fff, dword=0x1fffffff }
 Com_Tilemap_Cel :: struct{
     width, height: WORD,
     bits_per_tile: WORD, // always 32
     bitmask_id: Tile_ID,
-    bitmask_x: DWORD,
-    bitmask_y: DWORD,
-    bitmask_diagonal: DWORD,
+    bitmask_x: DWORD `fmt:"b"`,
+    bitmask_y: DWORD `fmt:"b"`,
+    bitmask_diagonal: DWORD `fmt:"b"`,
     tiles: []TILE, // ZLIB compressed
 }
 Cel_Types :: enum(WORD){
@@ -428,7 +427,6 @@ User_Data_Chunk :: struct {
     text: Maybe(string), 
     color: Maybe(Color_RGBA), 
     maps: Maybe(Properties_Map),
-
 }
 
 

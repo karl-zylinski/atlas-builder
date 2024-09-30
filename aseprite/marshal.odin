@@ -2,35 +2,32 @@ package aseprite_file_handler
 
 import "core:io"
 import "core:os"
-import "core:fmt"
 import "core:log"
 import "core:bytes"
 import "core:bufio"
 import "vendor:zlib"
-_::log
-_::fmt
 
 
-marshal_to_bytes_buff :: proc(b: ^bytes.Buffer, doc: ^Document, allocator := context.allocator)-> (file_size: int, err: Marshal_Error) {
+marshal_to_bytes_buff :: proc(doc: ^Document, b: ^bytes.Buffer, allocator := context.allocator)-> (file_size: int, err: Marshal_Error) {
     w, ok := io.to_writer(bytes.buffer_to_stream(b))
     if !ok {
         return file_size, .Unable_Make_Writer
     }
-    return marshal(w, doc, allocator)
+    return marshal(doc, w, allocator)
 }
 
-marshal_to_handle :: proc(h: os.Handle, doc: ^Document, allocator := context.allocator)-> (file_size: int, err: Marshal_Error) {
+marshal_to_handle :: proc(doc: ^Document, h: os.Handle, allocator := context.allocator)-> (file_size: int, err: Marshal_Error) {
     w, ok := io.to_writer(os.stream_from_handle(h))
     if !ok {
         return file_size, .Unable_Make_Writer
     }
-    return marshal(w, doc, allocator)
+    return marshal(doc, w, allocator)
 }
 
-marshal_to_slice :: proc(b: []byte, doc: ^Document, allocator := context.allocator)-> (file_size: int, err: Marshal_Error) {
+marshal_to_slice :: proc(doc: ^Document, b: []byte, allocator := context.allocator)-> (file_size: int, err: Marshal_Error) {
     buf: bytes.Buffer
     defer bytes.buffer_destroy(&buf)
-    file_size = marshal(&buf, doc, allocator) or_return
+    file_size = marshal(doc, &buf, allocator) or_return
     if len(b) < len(buf.buf[buf.off:]) {
         return file_size, Marshal_Errors.Buffer_Not_Big_Enough
     }
@@ -38,20 +35,20 @@ marshal_to_slice :: proc(b: []byte, doc: ^Document, allocator := context.allocat
     return
 }
 
-marshal_to_dynamic :: proc(b: ^[dynamic]byte, doc: ^Document, allocator := context.allocator)-> (file_size: int, err: Marshal_Error) {
+marshal_to_dynamic :: proc(doc: ^Document, b: ^[dynamic]byte, allocator := context.allocator)-> (file_size: int, err: Marshal_Error) {
     buf: bytes.Buffer
     defer bytes.buffer_destroy(&buf)
-    file_size = marshal(&buf, doc, allocator) or_return
+    file_size = marshal(doc, &buf, allocator) or_return
     append(b, ..buf.buf[:])
     return
 }
 
-marshal_to_bufio :: proc(w: ^bufio.Writer, doc: ^Document, allocator := context.allocator) -> (file_size: int, err: Marshal_Error) {
+marshal_to_bufio :: proc(doc: ^Document, w: ^bufio.Writer, allocator := context.allocator) -> (file_size: int, err: Marshal_Error) {
     ww, ok := io.to_writer(bufio.writer_to_stream(w))
     if !ok {
         return file_size, .Unable_Make_Writer
     }
-    return marshal(ww, doc, allocator)
+    return marshal(doc, ww, allocator)
 }
 
 marshal :: proc{
@@ -59,7 +56,7 @@ marshal :: proc{
     marshal_to_dynamic, marshal_to_bufio, marshal_to_writer,
 }
 
-marshal_to_writer :: proc(ww: io.Writer, doc: ^Document, allocator := context.allocator) -> (file_size: int, err: Marshal_Error) {
+marshal_to_writer :: proc(doc: ^Document, ww: io.Writer, allocator := context.allocator) -> (file_size: int, err: Marshal_Error) {
     ud_map_warn: bool
     s := &file_size
     b: bytes.Buffer
@@ -182,7 +179,7 @@ marshal_to_writer :: proc(ww: io.Writer, doc: ^Document, allocator := context.al
                 case Raw_Cel:
                     write(cw, cel.width, cs) or_return
                     write(cw, cel.height, cs) or_return
-                    write(cw, cel.pixel[:], cs) or_return
+                    write(cw, cel.pixels[:], cs) or_return
 
                 case Linked_Cel:
                     write(cw, WORD(cel), cs) or_return
@@ -191,13 +188,13 @@ marshal_to_writer :: proc(ww: io.Writer, doc: ^Document, allocator := context.al
                     write(cw, cel.width, cs) or_return
                     write(cw, cel.height, cs) or_return
 
-                    com_buf := make([]byte, len(cel.pixel)+64, allocator) or_return
+                    com_buf := make([]byte, len(cel.pixels)+64, allocator) or_return
                     defer delete(com_buf)
-                    data_rd: [^]u8 = raw_data(cel.pixel[:])
+                    data_rd: [^]u8 = raw_data(cel.pixels[:])
                     com_buf_rd: [^]u8 = raw_data(com_buf[:])
 
                     config := zlib.z_stream {
-                        avail_in=zlib.uInt(len(cel.pixel)), 
+                        avail_in=zlib.uInt(len(cel.pixels)), 
                         next_in=&data_rd[0],
                         avail_out=zlib.uInt(len(com_buf)),
                         next_out=&com_buf_rd[0],
@@ -409,7 +406,6 @@ marshal_to_writer :: proc(ww: io.Writer, doc: ^Document, allocator := context.al
                     }
 
                     map_size += 4
-                    //fmt.println(map_size, len(m), len(mb.buf))
                     write(cw, DWORD(map_size), cs) or_return
                     write(cw, mb.buf[:map_size-4], cs) or_return
                 }
