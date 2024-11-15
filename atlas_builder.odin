@@ -52,6 +52,10 @@ TILESET_WIDTH :: 10
 // The NxN pixel size of each tile.
 TILE_SIZE :: 8
 
+//Add padding to tiles by adding a pixel border around it and copying  there.
+// This helps with bleeding when doing subpixel camera movements.
+TILE_ADD_PADDING :: false
+
 // for package line at top of atlas Odin metadata file
 PACKAGE_NAME :: "game"
 
@@ -213,6 +217,39 @@ get_image_pixel :: proc(img: Image, x: int, y: int) -> Color {
 // and turns it from player_jump.png to Player_Jump.
 asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", strings.to_ada_case(slashpath.name(slashpath.base(path))))
+}
+
+load_png_tileset :: proc(filename: string, t: ^Tileset) {
+	data, data_ok := os.read_entire_file(filename)
+
+	if !data_ok {
+		log.error("Failed loading tileset", filename)
+		return
+	}
+
+	defer delete(data)
+
+	img, err := png.load_from_bytes(data)
+
+	if err != nil {
+		log.error("PNG load error", err)
+		return
+	}
+
+	defer png.destroy(img)
+
+	if img.depth != 8 && img.channels != 4 {
+		log.error(
+			"Only 8 bpp, 4 channels PNG supported (this can probably be fixed by doing some work in `load_png_texture_data`",
+		)
+		return
+	}
+
+	pixels_size := TILE_SIZE * TILESET_WIDTH
+	t.pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:]))
+	t.offset = {0, 0}
+	t.pixels_size = {pixels_size, pixels_size}
+	t.visible_pixels_size = {pixels_size, pixels_size}
 }
 
 // Loads a tileset. Currently only supports .ase tilesets
@@ -563,7 +600,12 @@ main :: proc() {
 		if is_ase || is_png {
 			path := fmt.tprintf("%s/%s", TEXTURES_DIR, fi.name)
 			if strings.has_prefix(fi.name, "tileset") {
-				load_tileset(path, &tileset)
+				if is_ase {
+					load_tileset(path, &tileset)
+				}
+				if is_png {
+					load_png_tileset(path, &tileset)
+				}
 			} else if is_ase {
 				load_ase_texture_data(path, &textures, &animations)	
 			} else if is_png {
@@ -808,53 +850,55 @@ main :: proc() {
 			// Add padding to tiles by adding a pixel border around it and copying the nearest pixels
 			// there. This helps with bleeding when doing subpixel camera movements.
 
-			ts :: TILE_SIZE
-			// Top
-			{
-				psource := Rect {
-					source.x,
-					source.y,
-					ts,
-					1,
+			if (TILE_ADD_PADDING) {
+				ts :: TILE_SIZE
+				// Top
+				{
+					psource := Rect {
+						source.x,
+						source.y,
+						ts,
+						1,
+					}
+
+					draw_image(&atlas, t_img, psource, {int(dest.x), int(dest.y - 1)})
 				}
 
-				draw_image(&atlas, t_img, psource, {int(dest.x), int(dest.y - 1)})
-			}
+				// Bottom
+				{
+					psource := Rect {
+						source.x,
+						source.y + ts -1,
+						ts,
+						1,
+					}
 
-			// Bottom
-			{
-				psource := Rect {
-					source.x,
-					source.y + ts -1,
-					ts,
-					1,
+					draw_image(&atlas, t_img, psource, {int(dest.x), int(dest.y + ts)})
 				}
 
-				draw_image(&atlas, t_img, psource, {int(dest.x), int(dest.y + ts)})
-			}
-
-			// Left
-			{
-				psource := Rect {
-					source.x,
-					source.y,
-					1,
-					ts,
+				// Left
+				{
+					psource := Rect {
+						source.x,
+						source.y,
+						1,
+						ts,
+					}
+					
+					draw_image(&atlas, t_img, psource, {int(dest.x - 1), int(dest.y)})
 				}
-				
-				draw_image(&atlas, t_img, psource, {int(dest.x - 1), int(dest.y)})
-			}
 
-			// Right
-			{
-				psource := Rect {
-					source.x + ts - 1,
-					source.y,
-					1,
-					ts,
+				// Right
+				{
+					psource := Rect {
+						source.x + ts - 1,
+						source.y,
+						1,
+						ts,
+					}
+					
+					draw_image(&atlas, t_img, psource, {int(dest.x + ts), int(dest.y)})
 				}
-				
-				draw_image(&atlas, t_img, psource, {int(dest.x + ts), int(dest.y)})
 			}
 
 			at := Atlas_Tile_Rect {
