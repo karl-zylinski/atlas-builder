@@ -52,9 +52,9 @@ TILESET_WIDTH :: 10
 // The NxN pixel size of each tile.
 TILE_SIZE :: 8
 
-//Add padding to tiles by adding a pixel border around it and copying  there.
+// Add padding to tiles by adding a pixel border around it and copying  there.
 // This helps with bleeding when doing subpixel camera movements.
-TILE_ADD_PADDING :: false
+TILE_ADD_PADDING :: true
 
 // for package line at top of atlas Odin metadata file
 PACKAGE_NAME :: "game"
@@ -847,10 +847,7 @@ main :: proc() {
 
 			draw_image(&atlas, t_img, source, {int(rp.x), int(rp.y)})
 
-			// Add padding to tiles by adding a pixel border around it and copying the nearest pixels
-			// there. This helps with bleeding when doing subpixel camera movements.
-
-			if (TILE_ADD_PADDING) {
+			when TILE_ADD_PADDING {
 				ts :: TILE_SIZE
 				// Top
 				{
@@ -963,7 +960,7 @@ main :: proc() {
 	fmt.fprintln(f, "Just make sure you have something along those lines the same package as this file.\n*/")
 	fmt.fprintln(f, "")
 
-	fmt.fprintf(f, "TEXTURE_ATLAS_FILENAME :: \"{}\"\n", ATLAS_PNG_OUTPUT_PATH)
+	fmt.fprintf(f, "TEXTURE_ATLAS_FILENAME :: \"%s\"\n", ATLAS_PNG_OUTPUT_PATH)
 	fmt.fprintf(f, "ATLAS_FONT_SIZE :: %v\n", FONT_SIZE)
 	fmt.fprintf(f, "LETTERS_IN_FONT :: \"%s\"\n\n", LETTERS_IN_FONT)
 
