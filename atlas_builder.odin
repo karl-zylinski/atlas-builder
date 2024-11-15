@@ -963,7 +963,7 @@ main :: proc() {
 	fmt.fprintln(f, "Just make sure you have something along those lines the same package as this file.\n*/")
 	fmt.fprintln(f, "")
 
-	fmt.fprintln(f, "TEXTURE_ATLAS_FILENAME :: \"atlas.png\"")
+	fmt.fprintf(f, "TEXTURE_ATLAS_FILENAME :: \"{}\"\n", ATLAS_PNG_OUTPUT_PATH)
 	fmt.fprintf(f, "ATLAS_FONT_SIZE :: %v\n", FONT_SIZE)
 	fmt.fprintf(f, "LETTERS_IN_FONT :: \"%s\"\n\n", LETTERS_IN_FONT)
 
