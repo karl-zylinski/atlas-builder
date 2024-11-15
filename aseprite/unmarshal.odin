@@ -26,7 +26,7 @@ unmarshal_from_bufio :: proc(doc: ^Document, r: ^bufio.Reader, alloc: runtime.Al
     return unmarshal(doc, rr, alloc)
 }
 
-unmarshal_from_filename :: proc(name: string, doc: ^Document, alloc := context.allocator) -> (err: Unmarshal_Error) {
+unmarshal_from_filename :: proc(doc: ^Document, name: string, alloc: runtime.Allocator = {}) -> (err: Unmarshal_Error) {
     fd, fd_err := os.open(name, os.O_RDONLY, 0)
     if fd_err != nil {
         log.error("Unable to read because of:", fd_err)

@@ -2,6 +2,7 @@
 Handler for Aseprite's `.ase`/`.aseprite`, `.aseprite-extension` &amp; extended `.gpl` files writen in Odin.   
 
 * `.\`: Main un/marshaler for `.ase`
+* `.\utils`: Creates Images & Animations from Documents
 * `.\raw`: un/marshals `.ase` exactly as given by the spec
 * `.\gpl`: extended & normal .gpl   
 * `.\extensions`: .aseprite-extension. WIP   
@@ -21,7 +22,7 @@ main :: proc() {
     doc: ase.Document
     defer ase.destroy_doc(&doc)
 
-    _, umerr := ase.unmarshal(data[:], &doc)
+    umerr := ase.unmarshal(data[:], &doc)
     if umerr != nil {
         fmt.println(umerr)
         return
@@ -30,9 +31,39 @@ main :: proc() {
     buf: [dynamic]byte
     defer delete(buf)
 
-    _, merr := ase.marshal(&buf, &doc)
+    written, merr := ase.marshal(&buf, &doc)
     if merr != nil {
         fmt.println(merr)
+        return
+    }
+}
+```
+
+### utils
+```odin
+package main
+
+import "core:fmt"
+import ase "odin-aseprite"
+import "odin-aseprite/utils"
+
+main :: proc() {
+    data := #load("geralt.aseprite")
+
+    doc: ase.Document
+    defer ase.destroy_doc(&doc)
+
+    umerr := ase.unmarshal(data[:], &doc)
+    if umerr != nil {
+        fmt.println(umerr)
+        return
+    }
+
+    imgs, imgs_err := utils.get_all_images(&doc)
+    defer utils.destroy(imgs)
+
+    if imgs_err != nil {
+        fmt.println(imgs_err)
         return
     }
 }
@@ -66,8 +97,7 @@ main :: proc() {
 
 
 ## Warnings
-User Data that is contained within maps can only be read not written rn.   
-ICC Colour Profiles aren't & will never be supported. The raw data will be saved to doc.   
+ICC Colour Profiles aren't supported. The raw data will be saved to doc.   
 
 ## Errors
 Any errors please make an issue or DM them to me, `blob1807`, on the [Odin Discord](https://discord.com/invite/sVBPHEv).  

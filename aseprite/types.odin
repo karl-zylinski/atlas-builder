@@ -282,14 +282,14 @@ Layer_Chunk :: struct {
 Raw_Cel :: struct{
     width: WORD, 
     height: WORD, 
-    pixels: []PIXEL
+    pixels: []PIXEL,
 }
 Linked_Cel :: distinct WORD
 // raw cel ZLIB compressed
 Com_Image_Cel :: struct{
     width: WORD, 
     height: WORD, 
-    pixels: []PIXEL
+    pixels: []PIXEL,
 }
 Tile_ID :: enum(DWORD) { byte=0xfffffff1, word=0xffff1fff, dword=0x1fffffff }
 Com_Tilemap_Cel :: struct{
