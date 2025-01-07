@@ -936,6 +936,10 @@ main :: proc() {
 
 	img_write :: proc "c" (ctx: rawptr, data: rawptr, size: c.int) {
 		context = default_context
+		dir := slashpath.dir(ATLAS_PNG_OUTPUT_PATH)
+		if dir != "" {
+			os.make_directory(dir)
+		}
 		os.write_entire_file(ATLAS_PNG_OUTPUT_PATH, slice.bytes_from_ptr(data, int(size)))
 	}
 
