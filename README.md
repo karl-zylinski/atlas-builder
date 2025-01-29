@@ -42,10 +42,13 @@ Rect :: struct {
 ## How to run the atlas builder
 
 See the README.md in the `example` folder. But in short:
-- Run this package.
-- It looks for `textures` folder and a `font.ttf` file in the current working directory.
+- Put the contents of this repository in a folder.
+- Execute `odin run folder_name`
+- It looks for a `textures` folder and a `font.ttf` file in the current working directory.
 - `atlas.png` and `atlas.odin` are ouputted
 - Those files can be used within your game to do efficent atlased drawing. See the example for more info.
+
+The `textures`, `font.ttf`, `atlas.png` and `atlas.odin` paths can be edited by modifying the constants at the top of `atlas_builder.odin`.
 
 ## Configuration
 
