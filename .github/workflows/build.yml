@@ -1,0 +1,53 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+
+jobs:
+  build_linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - uses: actions/checkout@v4
+      
+      - name: Build example
+        run: odin build example -vet -strict-style
+
+  build_macos:
+    name: MacOS
+    strategy:
+      matrix:
+        os: [macos-13, macos-15]
+    runs-on: ${{matrix.os}}
+    steps:
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - uses: actions/checkout@v4
+
+      - name: Build example
+        run: odin build example -vet -strict-style
+
+  build_windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/checkout@v4
+
+      - name: Build example
+        run: odin build example -vet -strict-style
