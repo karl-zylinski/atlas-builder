@@ -46,13 +46,11 @@ ATLAS_ODIN_OUTPUT_PATH :: "atlas.odin"
 // Set to false to not crop atlas after generation.
 ATLAS_CROP :: true
 
-// If you have a tileset (texture with tileset_) prefix, then this is says how many tiles wide it is
-TILESET_WIDTH :: 10
-
-// The NxN pixel size of each tile.
+// The NxN size of each tile (you can import tilesets by putting the prefix `tileset_` on a
+// texture. Note that the width and height of the tileset image must be multiple of this.
 TILE_SIZE :: 8
 
-// Add padding to tiles by adding a pixel border around it and copying  there.
+// Add padding to tiles by adding a pixel border around it and copying there.
 // This helps with bleeding when doing subpixel camera movements.
 TILE_ADD_PADDING :: true
 
@@ -247,12 +245,14 @@ load_png_tileset :: proc(filename: string) -> (Tileset, bool) {
 		return {}, false
 	}
 
-	pixels_size := TILE_SIZE * TILESET_WIDTH
+	assert(img.width % TILE_SIZE == 0, "Tileset width is not divisbile by TILE_SIZE!")
+	assert(img.height % TILE_SIZE == 0, "Tileset height is not divisbile by TILE_SIZE!")
+
 	t := Tileset {
 		pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:])),
 		offset = {0, 0},
-		pixels_size = {pixels_size, pixels_size},
-		visible_pixels_size = {pixels_size, pixels_size},
+		pixels_size = {img.width, img.height},
+		visible_pixels_size = {img.width, img.height},
 	}
 
 	return t, true
@@ -1070,11 +1070,12 @@ main :: proc() {
 	fmt.fprintln(f, "}\n")
 
 	for &t in tilesets {
+		w := t.pixels_size.x / TILE_SIZE
 		h := t.pixels_size.y / TILE_SIZE
 
 		fmt.fprintln(f, "// The rect inside the atlas where each tile has ended up.")
 		fmt.fprintfln(f, "// Index using %v[x][y].", t.name)
-		fmt.fprintfln(f, "%v := [%v][%v]Rect {{", t.name, TILESET_WIDTH, h)
+		fmt.fprintfln(f, "%v := [%v][%v]Rect {{", t.name, w, h)
 
 		slice.sort_by(t.packed_rects[:], proc(i, j: Atlas_Tile_Rect) -> bool {
 			if i.coord.x == j.coord.x {
