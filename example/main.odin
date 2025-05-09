@@ -133,8 +133,8 @@ draw :: proc() {
 	rl.DrawTextureRec(atlas, atlas_textures[.Bush].rect, {30, -18}, rl.WHITE)
 	draw_player(player)
 
-	draw_tile :: proc(t: Tile_Id, pos: Vec2, flip_x: bool) {
-		rect := atlas_tiles[t]
+	draw_tile :: proc(x: int, y: int, pos: Vec2, flip_x: bool) {
+		rect := tileset_cave[x][y]
 
 		if flip_x {
 			rect.width = -rect.width
@@ -147,8 +147,8 @@ draw :: proc() {
 	// atlas. Y0X4 is the coordinates within the tileset. T0 means tileset 0. Currently only one
 	// tileset is supported. Note that the tiles have 1 pixel padding added around them in the
 	// tileset to avoid bleeding when panning the camera.
-	draw_tile(.T0Y0X4, {8*10,0}, false)
-	draw_tile(.T0Y0X4, {-8*10,0}, true)
+	draw_tile(4, 0, {8*10,0}, false)
+	draw_tile(4, 0, {-8*10,0}, true)
 
 	// This also uses the atlas because the shapes drawing texture is within the atlas, see `main`
 	// for how I set that up.

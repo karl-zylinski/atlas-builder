@@ -130,10 +130,12 @@ Texture_Data :: struct {
 }
 
 Tileset :: struct {
+	name: string,
 	pixels: []Color,
 	pixels_size: Vec2i,
 	visible_pixels_size: Vec2i,
 	offset: Vec2i,
+	packed_rects: [dynamic]Atlas_Tile_Rect,
 }
 
 Animation :: struct {
@@ -219,12 +221,12 @@ asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", strings.to_ada_case(slashpath.name(slashpath.base(path))))
 }
 
-load_png_tileset :: proc(filename: string, t: ^Tileset) {
+load_png_tileset :: proc(filename: string) -> (Tileset, bool) {
 	data, data_ok := os.read_entire_file(filename)
 
 	if !data_ok {
 		log.error("Failed loading tileset", filename)
-		return
+		return {}, false
 	}
 
 	defer delete(data)
@@ -233,7 +235,7 @@ load_png_tileset :: proc(filename: string, t: ^Tileset) {
 
 	if err != nil {
 		log.error("PNG load error", err)
-		return
+		return {}, false
 	}
 
 	defer png.destroy(img)
@@ -242,23 +244,27 @@ load_png_tileset :: proc(filename: string, t: ^Tileset) {
 		log.error(
 			"Only 8 bpp, 4 channels PNG supported (this can probably be fixed by doing some work in `load_png_texture_data`",
 		)
-		return
+		return {}, false
 	}
 
 	pixels_size := TILE_SIZE * TILESET_WIDTH
-	t.pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:]))
-	t.offset = {0, 0}
-	t.pixels_size = {pixels_size, pixels_size}
-	t.visible_pixels_size = {pixels_size, pixels_size}
+	t := Tileset {
+		pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:])),
+		offset = {0, 0},
+		pixels_size = {pixels_size, pixels_size},
+		visible_pixels_size = {pixels_size, pixels_size},
+	}
+
+	return t, true
 }
 
 // Loads a tileset. Currently only supports .ase tilesets
-load_tileset :: proc(filename: string, t: ^Tileset) {
+load_tileset :: proc(filename: string) -> (Tileset, bool) {
 	data, data_ok := os.read_entire_file(filename)
 
 	if !data_ok {
 		log.error("Failed loading tileset", filename)
-		return
+		return {}, false
 	}
 
 	defer delete(data)
@@ -267,7 +273,7 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 	umerr := ase.unmarshal(&doc, data[:])
 	if umerr != nil {
 		log.error("Aseprite unmarshal error", umerr)
-		return
+		return {}, false
 	}
 
 	defer ase.destroy_doc(&doc)
@@ -288,6 +294,8 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 	if indexed && len(palette.entries) == 0 {
 		log.error("Document is indexed, but found no palette!")
 	}
+
+	t: Tileset
 
 	for f in doc.frames {
 		for c in f.chunks {
@@ -314,6 +322,8 @@ load_tileset :: proc(filename: string, t: ^Tileset) {
 			}
 		}
 	}
+
+	return t, true
 }
 
 load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data, animations: ^[dynamic]Animation) {
@@ -592,7 +602,7 @@ main :: proc() {
 		return time.diff(i.creation_time, j.creation_time) > 0
 	})
 
-	tileset: Tileset
+	tilesets: [dynamic]Tileset
 
 	for fi in file_infos {
 		is_ase := strings.has_suffix(fi.name, ".ase") || strings.has_suffix(fi.name, ".aseprite")
@@ -600,11 +610,18 @@ main :: proc() {
 		if is_ase || is_png {
 			path := fmt.tprintf("%s/%s", TEXTURES_DIR, fi.name)
 			if strings.has_prefix(fi.name, "tileset") {
+				t: Tileset
+				t_ok: bool
+
 				if is_ase {
-					load_tileset(path, &tileset)
+					t, t_ok = load_tileset(path)
+				} else if is_png {
+					t, t_ok = load_png_tileset(path)
 				}
-				if is_png {
-					load_png_tileset(path, &tileset)
+
+				if t_ok {
+					t.name = slashpath.name(fi.name)
+					append(&tilesets, t)
 				}
 			} else if is_ase {
 				load_ase_texture_data(path, &textures, &animations)	
@@ -619,8 +636,6 @@ main :: proc() {
 	stbrp.init_target(&rc, ATLAS_SIZE, ATLAS_SIZE, raw_data(rc_nodes[:]), ATLAS_SIZE)
 
 	letters := utf8.string_to_runes(LETTERS_IN_FONT)
-
-	pack_rects: [dynamic]stbrp.Rect
 	glyphs: []Glyph
 
 	PackRectType :: enum {
@@ -630,31 +645,15 @@ main :: proc() {
 		ShapesTexture,
 	}
 
-	make_pack_rect_id :: proc(id: i32, type: PackRectType) -> i32 {
-		t := u32(type)
-		t <<= 29
-		t |= u32(id)
-		return i32(t)
+	PackRectItem :: struct {
+		type: PackRectType,
+		idx: int,
+		x: int,
+		y: int,
 	}
 
-	make_tile_id :: proc(x, y: int) -> i32 {
-		id: i32 = i32(x)
-		id <<= 13
-		return id | i32(y)
-	}
-
-	idx_from_rect_id :: proc(id: i32) -> int {
-		return int((u32(id) << 3)>>3)
-	}
-
-	x_y_from_tile_id :: proc(id: i32) -> (x, y: int) {
-		id_type_stripped := idx_from_rect_id(id)
-		return int(id_type_stripped >> 13), int((u32(id_type_stripped)<<19)>>19)
-	}
-
-	rect_id_type :: proc(i: i32) -> PackRectType {
-		return PackRectType(i >> 29)
-	}
+	pack_rects: [dynamic]stbrp.Rect
+	pack_rects_items: [dynamic]PackRectItem
 
 	if font_data, ok := os.read_entire_file(FONT_FILENAME); ok {
 		fi: stbtt.fontinfo
@@ -694,9 +693,14 @@ main :: proc() {
 				}
 
 				append(&pack_rects, stbrp.Rect {
-					id = make_pack_rect_id(i32(r_idx), .Glyph),
+					id = i32(len(pack_rects_items)),
 					w = stbrp.Coord(w) + 2,
 					h = stbrp.Coord(h) + 2,
+				})
+
+				append(&pack_rects_items, PackRectItem {
+					type = .Glyph,
+					idx = r_idx,
 				})
 			}
 		}
@@ -706,58 +710,78 @@ main :: proc() {
 
 	for t, idx in textures {
 		append(&pack_rects, stbrp.Rect {
-			id = make_pack_rect_id(i32(idx), .Texture),
+			id = i32(len(pack_rects_items)),
 			w = stbrp.Coord(t.source_size.x) + 1,
 			h = stbrp.Coord(t.source_size.y) + 1,
 		})
+
+		append(&pack_rects_items, PackRectItem {
+			type = .Texture,
+			idx = idx,
+		})
 	}
 
-	if tileset.pixels_size.x != 0 && tileset.pixels_size.y != 0 {
-		h := tileset.pixels_size.y / TILE_SIZE
-		w := tileset.pixels_size.x / TILE_SIZE
-		top_left := -tileset.offset
+	for &t, idx in tilesets {
+		if t.pixels_size.x != 0 && t.pixels_size.y != 0 {
+			h := t.pixels_size.y / TILE_SIZE
+			w := t.pixels_size.x / TILE_SIZE
+			top_left := -t.offset
 
-		t_img := Image {
-			data = tileset.pixels,
-			width = tileset.pixels_size.x,
-			height = tileset.pixels_size.y,
-		}
-		
-		for x in 0 ..<w {
-			for y in 0..<h {
-				tx := TILE_SIZE * x + top_left.x
-				ty := TILE_SIZE * y + top_left.y
+			t_img := Image {
+				data = t.pixels,
+				width = t.pixels_size.x,
+				height = t.pixels_size.y,
+			}
+			
+			for x in 0 ..<w {
+				for y in 0..<h {
+					tx := TILE_SIZE * x + top_left.x
+					ty := TILE_SIZE * y + top_left.y
 
-				all_blank := true
-				txx_loop: for txx in tx..<tx+TILE_SIZE {
-					for tyy in ty..<ty+TILE_SIZE {
-						if get_image_pixel(t_img, int(txx), int(tyy)) != {} {
-							all_blank = false
-							break txx_loop
+					all_blank := true
+					txx_loop: for txx in tx..<tx+TILE_SIZE {
+						for tyy in ty..<ty+TILE_SIZE {
+							if get_image_pixel(t_img, int(txx), int(tyy)) != {} {
+								all_blank = false
+								break txx_loop
+							}
 						}
 					}
+
+					if all_blank {
+						continue
+					}
+
+					pad: stbrp.Coord = TILE_ADD_PADDING ? 3 : 1
+
+					append(&pack_rects, stbrp.Rect {
+						id = i32(len(pack_rects_items)),
+						w = TILE_SIZE+pad,
+						h = TILE_SIZE+pad,
+					})
+
+					append(&pack_rects_items, PackRectItem {
+						type = .Tile,
+						idx = idx,
+						x = x,
+						y = y,
+					})
 				}
-
-				if all_blank {
-					continue
-				}
-
-				pad: stbrp.Coord = TILE_ADD_PADDING ? 3 : 1
-
-				append(&pack_rects, stbrp.Rect {
-					id = make_pack_rect_id(make_tile_id(x, y), .Tile),
-					w = TILE_SIZE+pad,
-					h = TILE_SIZE+pad,
-				})
 			}
 		}
 	}
 
 	append(&pack_rects, stbrp.Rect {
-		id = make_pack_rect_id(0, .ShapesTexture),
+		id = i32(len(pack_rects_items)),
 		w = 11,
 		h = 11,
 	})
+
+	append(&pack_rects_items, PackRectItem {
+		type = .ShapesTexture,
+	})
+
+	assert(len(pack_rects) == len(pack_rects_items))
 
 	rect_pack_res := stbrp.pack_rects(&rc, raw_data(pack_rects), i32(len(pack_rects)))
 
@@ -772,20 +796,19 @@ main :: proc() {
 		height = ATLAS_SIZE,
 	}
 	atlas_textures: [dynamic]Atlas_Texture_Rect
-	atlas_tiles: [dynamic]Atlas_Tile_Rect
 
 	atlas_glyphs: [dynamic]Atlas_Glyph
 	shapes_texture_rect: Rect
 
 	for rp in pack_rects {
-		type := rect_id_type(rp.id)
+		item := pack_rects_items[rp.id]
 
-		switch type {
+		switch item.type {
 		case .ShapesTexture:
 			shapes_texture_rect = Rect {int(rp.x), int(rp.y), 10, 10}
 			draw_image_rectangle(&atlas, shapes_texture_rect, {255, 255, 255, 255})
 		case .Texture:
-			idx := idx_from_rect_id(rp.id)
+			idx := item.idx
 
 			t := textures[idx]
 
@@ -815,7 +838,7 @@ main :: proc() {
 
 			append(&atlas_textures, ar)	
 		case .Glyph:
-			idx := idx_from_rect_id(rp.id)
+			idx := item.idx
 			g := glyphs[idx]
 			img := g.image
 
@@ -831,7 +854,8 @@ main :: proc() {
 
 			append(&atlas_glyphs, ag)
 		case .Tile:
-			ix, iy := x_y_from_tile_id(rp.id)
+			ix, iy := item.x, item.y
+			tileset := &tilesets[item.idx]
 
 			x := TILE_SIZE * ix
 			y := TILE_SIZE * iy
@@ -906,7 +930,7 @@ main :: proc() {
 				coord = {ix, iy},
 			}
 
-			append(&atlas_tiles, at)
+			append(&tileset.packed_rects, at)
 		}
 	}
 
@@ -1045,26 +1069,44 @@ main :: proc() {
 
 	fmt.fprintln(f, "}\n")
 
+	for &t in tilesets {
+		h := t.pixels_size.y / TILE_SIZE
 
-	fmt.fprintln(f, "// All these are pre-generated so you can save tile IDs to data without")
-	fmt.fprintln(f, "// worrying about their order changing later.")
-	fmt.fprintln(f, "Tile_Id :: enum {")
-	for y in 0..<TILESET_WIDTH {
-		for x in 0..<TILESET_WIDTH {
-			fmt.fprintf(f, "\tT0Y%vX%v,\n", y, x)
+		fmt.fprintln(f, "// The rect inside the atlas where each tile has ended up.")
+		fmt.fprintfln(f, "// Index using %v[x][y].", t.name)
+		fmt.fprintfln(f, "%v := [%v][%v]Rect {{", t.name, TILESET_WIDTH, h)
+
+		slice.sort_by(t.packed_rects[:], proc(i, j: Atlas_Tile_Rect) -> bool {
+			if i.coord.x == j.coord.x {
+				return i.coord.y < j.coord.y
+			}
+
+			return i.coord.x < j.coord.x
+		})
+
+		prev_column := 0
+		for p, idx in t.packed_rects {
+			if idx == 0 {
+				fmt.fprint(f, "\t0 = {\n")
+			}
+
+			if p.coord.x != prev_column {
+				fmt.fprint(f, "\t},\n")
+				fmt.fprintf(f, "\t%v = {{\n", p.coord.x)
+			}
+
+			prev_column = p.coord.x
+
+			fmt.fprintf(f, "\t\t %v = {{%v, %v, %v, %v}},\n",
+				p.coord.y, p.rect.x, p.rect.y, p.rect.width, p.rect.height)
+
+			if idx == len(t.packed_rects) - 1 {
+				fmt.fprint(f, "\t},\n")
+			}
 		}
+
+		fmt.fprintln(f, "}\n")
 	}
-	fmt.fprintln(f, "}")
-	fmt.fprintln(f, "")
-
-	fmt.fprintln(f, "atlas_tiles := #partial [Tile_Id]Rect {")
-
-	for at in atlas_tiles {
-		fmt.fprintf(f, "\t.T0Y%vX%v = {{%v, %v, %v, %v}},\n",
-			 at.coord.y, at.coord.x, at.rect.x, at.rect.y, at.rect.width, at.rect.height)
-	}
-
-	fmt.fprintln(f, "}\n")
 
 
 	fmt.fprintln(f, "Atlas_Glyph :: struct {")
