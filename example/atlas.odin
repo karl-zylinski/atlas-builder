@@ -27,7 +27,7 @@ LETTERS_IN_FONT :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12345678
 
 // A generated square in the atlas you can use with rl.SetShapesTexture to make
 // raylib shapes such as rl.DrawRectangleRec() use the atlas.
-SHAPES_TEXTURE_RECT :: Rect {201, 19, 10, 10}
+SHAPES_TEXTURE_RECT :: Rect {212, 30, 10, 10}
 
 Texture_Name :: enum {
 	None,
@@ -191,19 +191,19 @@ Tile_Id :: enum {
 }
 
 atlas_tiles := #partial [Tile_Id]Rect {
-	.T0Y0X0 = {243, 20, 8, 8},
-	.T0Y1X0 = {253, 20, 8, 8},
-	.T0Y0X1 = {38, 21, 8, 8},
-	.T0Y1X1 = {8, 23, 8, 8},
-	.T0Y0X2 = {18, 23, 8, 8},
-	.T0Y1X2 = {28, 23, 8, 8},
-	.T0Y0X3 = {213, 30, 8, 8},
-	.T0Y1X3 = {223, 30, 8, 8},
-	.T0Y0X4 = {233, 30, 8, 8},
-	.T0Y0X5 = {243, 30, 8, 8},
-	.T0Y0X6 = {253, 30, 8, 8},
-	.T0Y0X7 = {233, 20, 8, 8},
-	.T0Y0X8 = {223, 20, 8, 8},
+	.T0Y0X0 = {246, 20, 8, 8},
+	.T0Y1X0 = {38, 21, 8, 8},
+	.T0Y0X1 = {8, 23, 8, 8},
+	.T0Y1X1 = {19, 23, 8, 8},
+	.T0Y0X2 = {202, 31, 8, 8},
+	.T0Y1X2 = {202, 20, 8, 8},
+	.T0Y0X3 = {224, 31, 8, 8},
+	.T0Y1X3 = {235, 31, 8, 8},
+	.T0Y0X4 = {246, 31, 8, 8},
+	.T0Y0X5 = {30, 32, 8, 8},
+	.T0Y0X6 = {135, 33, 8, 8},
+	.T0Y0X7 = {235, 20, 8, 8},
+	.T0Y0X8 = {224, 20, 8, 8},
 	.T0Y0X9 = {213, 20, 8, 8},
 }
 
@@ -281,12 +281,12 @@ atlas_glyphs: []Atlas_Glyph = {
 	{ rect = {220, 1, 9, 17}, value = '?', offset_x = 0, offset_y = 7, advance_x = 9},
 	{ rect = {258, 1, 4, 17}, value = '!', offset_x = 1, offset_y = 7, advance_x = 6},
 	{ rect = {97, 1, 14, 17}, value = '&', offset_x = 0, offset_y = 7, advance_x = 13},
-	{ rect = {38, 31, 4, 4}, value = '.', offset_x = 1, offset_y = 20, advance_x = 5},
-	{ rect = {1, 24, 4, 7}, value = ',', offset_x = 1, offset_y = 20, advance_x = 5},
-	{ rect = {1, 33, 11, 2}, value = '_', offset_x = 0, offset_y = 24, advance_x = 11},
+	{ rect = {1, 24, 4, 4}, value = '.', offset_x = 1, offset_y = 20, advance_x = 5},
+	{ rect = {257, 20, 4, 7}, value = ',', offset_x = 1, offset_y = 20, advance_x = 5},
+	{ rect = {146, 33, 11, 2}, value = '_', offset_x = 0, offset_y = 24, advance_x = 11},
 	{ rect = {423, 19, 4, 12}, value = ':', offset_x = 1, offset_y = 12, advance_x = 5},
 	{ rect = {31, 1, 5, 20}, value = '[', offset_x = 2, offset_y = 7, advance_x = 6},
 	{ rect = {24, 1, 5, 20}, value = ']', offset_x = 0, offset_y = 7, advance_x = 6},
-	{ rect = {202, 31, 7, 3}, value = '-', offset_x = 0, offset_y = 16, advance_x = 6},
+	{ rect = {41, 32, 7, 3}, value = '-', offset_x = 0, offset_y = 16, advance_x = 6},
 	{ rect = {153, 20, 11, 11}, value = '+', offset_x = 0, offset_y = 10, advance_x = 11},
 }

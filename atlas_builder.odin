@@ -742,10 +742,12 @@ main :: proc() {
 					continue
 				}
 
+				pad: stbrp.Coord = TILE_ADD_PADDING ? 3 : 1
+
 				append(&pack_rects, stbrp.Rect {
 					id = make_pack_rect_id(make_tile_id(x, y), .Tile),
-					w = TILE_SIZE+2,
-					h = TILE_SIZE+2,
+					w = TILE_SIZE+pad,
+					h = TILE_SIZE+pad,
 				})
 			}
 		}
@@ -843,9 +845,10 @@ main :: proc() {
 			}
 			
 			source := Rect {x + top_left.x, y + top_left.y, TILE_SIZE, TILE_SIZE}
-			dest := Rect {int(rp.x) + 1, int(rp.y) + 1, source.width, source.height}
+			offset := TILE_ADD_PADDING == true ? 1 : 0
+			dest := Rect {int(rp.x) + offset, int(rp.y) + offset, source.width, source.height}
 
-			draw_image(&atlas, t_img, source, {int(rp.x), int(rp.y)})
+			draw_image(&atlas, t_img, source, {int(dest.x), int(dest.y)})
 
 			when TILE_ADD_PADDING {
 				ts :: TILE_SIZE
