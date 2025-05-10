@@ -58,8 +58,7 @@ There are a few constants at the top of `atlas_builder.odin`:
 - `ATLAS_PNG_OUTPUT_PATH`: Path to output the atlas PNG to
 - `ATLAS_ODIN_OUTPUT_PATH`: Path to output the atlas Odin metadata file to
 - `ATLAS_CROP`: If atlas should be cropped after generation. Default: true
-- `TILESET_WIDTH`: If you have any texture prefixed with `tileset_`, it will be treated as a tileset. This setting says how many tiles wide it is.
-- `TILESET_SIZE`: How many pixels each tile takes in the tileset
+- `TILESET_SIZE`: If you have any texture prefixed with `tileset_`, it will be treated as a tileset. This setting says how many pixels each tile takes in the tileset. The tileset must have width and height that is divisble by this number.
 - `PACKAGE_NAME`: The package name to use at the top of the `atlas.odin` file.
 - `TEXTURES_DIR`: The folder in which to look for textures to put into atlas.
 - `LETTERS_IN_FONT`: The letters to extract from the font.
@@ -229,8 +228,11 @@ animation_draw(where_ever_you_put_the_anim, position)
 
 ## Tilesets
 
-If a texture name starts with `tileset_` then it will be treated as a tileset. In that case `atlas_tiles` contains the mapping from tile IDs the atlas rects.
+If a texture name starts with `tileset_` then it will be treated as a tileset. For each tileset, `atlas.odin` will contain a 2D array of rectangles. The rectangles say where in the atlas each tile ended up. Example:
 
-The tile IDs are of the format `T0Y0X0`, `T0Y0X1` etc. I.e. just coordinates of which tile is which. You can check if a tile exists by doing `if atlas_tiles[some_tile_id] != {} { }`
+A tileset called `tileset_nature.ase` will result in a 2D array in `atlas.odin` called `tileset_nature`. Fetch the tile at position `x = 2, y = 3` like so:
+```
+tile_rect := tileset_nature[2][3]
+```
 
-Note: Set `TILE_SIZE` and `TILESET_WIDTH` in `atlas_builder.odin` to the correct values for your tileset.
+Note: Set `TILE_SIZE` in `atlas_builder.odin` to the correct values for your tileset.
