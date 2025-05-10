@@ -46,8 +46,8 @@ ATLAS_ODIN_OUTPUT_PATH :: "atlas.odin"
 // Set to false to not crop atlas after generation.
 ATLAS_CROP :: true
 
-// The NxN size of each tile (you can import tilesets by putting the prefix `tileset_` on a
-// texture. Note that the width and height of the tileset image must be multiple of this.
+// The NxN size of each tile (you can import tilesets by giving textures the prefix `tileset_`)
+// Note that the width and height of the tileset image must be multiple of TILE_SIZE.
 TILE_SIZE :: 8
 
 // Add padding to tiles by adding a pixel border around it and copying there.
