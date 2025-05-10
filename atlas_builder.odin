@@ -151,6 +151,26 @@ Image :: struct {
 	height: int,
 }
 
+Color_F32 :: [4]f32
+
+color_f32 :: proc(c: Color) -> Color_F32 {
+	return {
+		f32(c.r) / 255,
+		f32(c.g) / 255,
+		f32(c.b) / 255,
+		f32(c.a) / 255,
+	}
+}
+
+color_from_f32 :: proc(c: Color_F32) -> Color {
+	return {
+		u8(c.r * 255),
+		u8(c.g * 255),
+		u8(c.b * 255),
+		u8(c.a * 255),
+	}
+}
+
 draw_image :: proc(to: ^Image, from: Image, source: Rect, pos: Vec2i) {
 	for sxf in 0..<source.width {
 		for syf in 0..<source.height {
@@ -178,7 +198,16 @@ draw_image :: proc(to: ^Image, from: Image, source: Rect, pos: Vec2i) {
 
 			from_idx := sy * from.width + sx
 			to_idx := dy * to.width + dx
-			to.data[to_idx] = from.data[from_idx]
+
+
+			if to.data[to_idx].a == 0 {
+				to.data[to_idx] = from.data[from_idx]
+			} else {
+				f := color_f32(from.data[from_idx])
+				t := color_f32(to.data[to_idx])
+
+				to.data[to_idx] = color_from_f32(t*(1-f.a) + f*f.a)
+			}
 		}
 	}
 }
@@ -295,32 +324,59 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 		log.error("Document is indexed, but found no palette!")
 	}
 
-	t: Tileset
+	combined_layers := Image {
+		data = make([]Color, int(doc.header.width*doc.header.height)),
+		width = int(doc.header.width),
+		height = int(doc.header.height),
+	}
 
 	for f in doc.frames {
 		for c in f.chunks {
 			#partial switch cv in c {
 				case ase.Cel_Chunk:
 					if cl, ok := cv.cel.(ase.Com_Image_Cel); ok {
+						cel_pixels: []Color
+
 						if indexed {
-							t.pixels = make([]Color, int(cl.width) * int(cl.height))
+							cel_pixels = make([]Color, int(cl.width) * int(cl.height))
 							for p, idx in cl.pixels {
 								if p == 0 {
 									continue
 								}
-
-								t.pixels[idx] = Color(palette.entries[u32(p)].color)
+								
+								cel_pixels[idx] = Color(palette.entries[u32(p)].color)
 							}
 						} else {
-							t.pixels = slice.clone(slice.reinterpret([]Color, cl.pixels))
+							cel_pixels = slice.reinterpret([]Color, cl.pixels)
 						}
 
-						t.offset = {int(cv.x), int(cv.y)}
-						t.pixels_size = {int(cl.width), int(cl.height)}
-						t.visible_pixels_size = {int(doc.header.width), int(doc.header.height)}
+						from := Image {
+							data = cel_pixels,
+							width = int(cl.width),
+							height = int(cl.height),
+						}
+
+						source := Rect {
+							0, 0,
+							int(cl.width), int(cl.height),
+						}
+
+						dest_pos := Vec2i {
+							int(cv.x),
+							int(cv.y),
+						}
+
+						draw_image(&combined_layers, from, source, dest_pos)
 					}
 			}
 		}
+	}
+
+
+	t := Tileset {
+		pixels = combined_layers.data,
+		pixels_size = { combined_layers.width, combined_layers.height },
+		visible_pixels_size = { combined_layers.width, combined_layers.height },
 	}
 
 	return t, true

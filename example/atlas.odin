@@ -87,7 +87,7 @@ atlas_animations := [Animation_Name]Atlas_Animation {
 
 // The rect inside the atlas where each tile has ended up.
 // Index using tileset_cave[x][y].
-tileset_cave := [10][2]Rect {
+tileset_cave := [10][10]Rect {
 	0 = {
 		 0 = {246, 20, 8, 8},
 		 1 = {38, 21, 8, 8},
