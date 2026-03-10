@@ -7,9 +7,6 @@ import "core:os"
 import "core:math/fixed"
 import "core:mem/virtual"
 import "core:compress/zlib"
-import "core:encoding/uuid"
-
-
 import vzlib "vendor:zlib"
 
 //https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md
@@ -101,7 +98,7 @@ LONG64 :: i64
 
 BYTE_N :: [dynamic]BYTE
 
-
+// https://odin-lang.org/docs/overview/#packed
 STRING :: string
 POINT :: struct {
     x: LONG,
@@ -113,7 +110,7 @@ SIZE :: struct {
 }
 RECT :: struct {
     origin: POINT,
-    size:   SIZE,
+    size: SIZE,
 }
 
 PIXEL_RGBA      :: [4]BYTE
@@ -125,93 +122,83 @@ PIXEL :: u8
 TILE  :: union {BYTE, WORD, DWORD}
 
 // of size 16
-UUID :: uuid.Identifier
+UUID :: [16]BYTE
 
-Color_RGB  :: [3]BYTE
+Color_RGB :: [3]BYTE
 Color_RGBA :: [4]BYTE
 
 Document :: struct {
     header: File_Header,
     frames: []Frame,
-    arena:  virtual.Arena `fmt:"-"`,
+    arena: virtual.Arena `fmt:"-"`,
 }
-
 
 Frame :: struct {
     header: Frame_Header,
     chunks: []Chunk,
 }
 
-Chunk :: union {
+Chunk :: union{
     Old_Palette_256_Chunk, Old_Palette_64_Chunk, Layer_Chunk, Cel_Chunk, 
     Cel_Extra_Chunk, Color_Profile_Chunk, External_Files_Chunk, Mask_Chunk, 
     Path_Chunk, Tags_Chunk, Palette_Chunk, User_Data_Chunk, Slice_Chunk, 
     Tileset_Chunk,
 }
 
-
 FILE_MAGIC_NUM : WORD : 0xA5E0
 FILE_HEADER_SIZE :: 128
 
-
-Color_Depth :: enum(WORD) {
-    Indexed   = 8,
-    Grayscale = 16,
-    RGBA      = 32,
+Color_Depth :: enum(WORD){
+    Indexed=8,
+    Grayscale=16,
+    RGBA=32,
 }
-
-File_Flag :: enum(DWORD) { 
+File_Flag :: enum(DWORD){
     Layer_Opacity,
-    Layer_Blend_Opacity_for_Groups,
-    Has_UUID,
 }
 File_Flags :: bit_set[File_Flag; DWORD]
-
 File_Header :: struct {
-    size:   DWORD,
+    size: DWORD,
     frames: WORD,
-    width:  WORD,
+    width: WORD,
     height: WORD,
     color_depth: Color_Depth,
-    flags:  File_Flags, // 1=Layer opacity has valid value
-    speed:  WORD, // Not longer in use
+    flags: File_Flags, // 1=Layer opacity has valid value
+    speed: WORD, // Not longer in use
     transparent_index: BYTE, // for Indexed sprites only
     num_of_colors: WORD, // 0 == 256 for old sprites
-    ratio_width:   BYTE, // "pixel width/pixel height" if 0 ratio == 1:1
-    ratio_height:  BYTE, // "pixel width/pixel height" if 0 ratio == 1:1
+    ratio_width: BYTE, // "pixel width/pixel height" if 0 ratio == 1:1
+    ratio_height: BYTE, // "pixel width/pixel height" if 0 ratio == 1:1
     x: SHORT,
     y: SHORT,
-    grid_width:  WORD, // 0 if no grid
+    grid_width: WORD, // 0 if no grid
     grid_height: WORD, // 0 if no grid
 }
 
-
 FRAME_HEADER_SIZE :: 16
 FRAME_MAGIC_NUM : WORD : 0xF1FA
-
 Frame_Header :: struct {
-    old_num_of_chunks: WORD,  // if \xFFFF use new
-    duration:          WORD,  // in milliseconds
-    num_of_chunks:     DWORD, // if 0 use old
+    old_num_of_chunks: WORD, // if \xFFFF use new
+    duration: WORD, // in milliseconds
+    num_of_chunks: DWORD, // if 0 use old
 }
-
 
 Chunk_Types :: enum(WORD) {
     none,
     old_palette_256 = 0x0004,
-    old_palette_64  = 0x0011,
-    layer           = 0x2004,
-    cel             = 0x2005,
-    cel_extra       = 0x2006,
-    color_profile   = 0x2007,
-    external_files  = 0x2008,
-    mask            = 0x2016, // no longer in use
-    path            = 0x2017, // not in use
-    tags            = 0x2018,
-    palette         = 0x2019,
-    user_data       = 0x2020,
-    slice           = 0x2022,
-    tileset         = 0x2023,
+    old_palette_64 = 0x0011,
+    layer = 0x2004,
+    cel = 0x2005,
+    cel_extra = 0x2006,
+    color_profile = 0x2007,
+    external_files = 0x2008,
+    mask = 0x2016, // no longer in use
+    path = 0x2017, // not in use
+    tags = 0x2018,
+    palette = 0x2019,
+    user_data = 0x2020,
+    slice = 0x2022,
+    tileset = 0x2023,
 }
 
 Chunk_Types_Set :: enum {
@@ -230,19 +217,18 @@ Chunk_Types_Set :: enum {
     slice,
     tileset,
 }
-
 Chunk_Set :: bit_set[Chunk_Types_Set]
 
 
 Old_Palette_Packet :: struct {
     entries_to_skip: BYTE, // start from 0
-    num_colors:      BYTE, // 0 == 256
-    colors:          []Color_RGB,
+    num_colors: BYTE, // 0 == 256
+    colors: []Color_RGB,
 }
-
 Old_Palette_256_Chunk :: distinct []Old_Palette_Packet
-Old_Palette_64_Chunk  :: distinct []Old_Palette_Packet
-
+Old_Palette_64_Chunk :: distinct []Old_Palette_Packet
+// Old_Palette_256_Chunk :: struct{packets: []Old_Palette_Packet}
+// Old_Palette_64_Chunk :: struct{packets: []Old_Palette_Packet}
 
 Layer_Chunk_Flag :: enum(WORD) {
     Visiable,
@@ -254,13 +240,11 @@ Layer_Chunk_Flag :: enum(WORD) {
     Ref_Layer,
 }
 Layer_Chunk_Flags :: bit_set [Layer_Chunk_Flag; WORD]
-
 Layer_Types :: enum(WORD) {
     Normal, // image
     Group,
     Tilemap,
 }
-
 Layer_Blend_Mode :: enum(WORD) {
     Normal,
     Multiply,
@@ -282,230 +266,195 @@ Layer_Blend_Mode :: enum(WORD) {
     Subtract,
     Divide,
 }
-
 Layer_Chunk :: struct {
-    flags:          Layer_Chunk_Flags,
-    type:           Layer_Types,
-    child_level:    WORD,
-    default_width:  WORD, // Ignored
+    flags: Layer_Chunk_Flags,
+    type: Layer_Types,
+    child_level: WORD,
+    default_width: WORD, // Ignored
     default_height: WORD, // Ignored
-    blend_mode:     Layer_Blend_Mode,
-    opacity:        BYTE, // valid when header flag is 1
-    name:           string,
-    tileset_index:  DWORD, // set if type == Tilemap
-    uuid:           Maybe(UUID),
+    blend_mode: Layer_Blend_Mode,
+    opacity: BYTE, // valid when header flag is 1
+    name: string,
+    tileset_index: DWORD, // set if type == Tilemap
 }
 
 
 Raw_Cel :: struct{
-    width:  WORD, 
+    width: WORD, 
     height: WORD, 
     pixels: []PIXEL,
 }
-
 Linked_Cel :: distinct WORD
-
 // raw cel ZLIB compressed
 Com_Image_Cel :: struct{
-    width:  WORD, 
+    width: WORD, 
     height: WORD, 
     pixels: []PIXEL,
 }
-
-Tile_ID :: enum(DWORD) { 
-    byte  = 0xfffffff1, 
-    word  = 0xffff1fff, 
-    dword = 0x1fffffff,
-}
-
+Tile_ID :: enum(DWORD) { byte=0xfffffff1, word=0xffff1fff, dword=0x1fffffff }
 Com_Tilemap_Cel :: struct{
-    width, height:    WORD,
-    bits_per_tile:    WORD, // always 32
-    bitmask_id:       Tile_ID,
-    bitmask_x:        DWORD  `fmt:"b"`,
-    bitmask_y:        DWORD  `fmt:"b"`,
-    bitmask_diagonal: DWORD  `fmt:"b"`,
-    tiles:            []TILE, // ZLIB compressed
+    width, height: WORD,
+    bits_per_tile: WORD, // always 32
+    bitmask_id: Tile_ID,
+    bitmask_x: DWORD `fmt:"b"`,
+    bitmask_y: DWORD `fmt:"b"`,
+    bitmask_diagonal: DWORD `fmt:"b"`,
+    tiles: []TILE, // ZLIB compressed
 }
-
 Cel_Types :: enum(WORD){
     Raw,
     Linked_Cel,
     Compressed_Image,
     Compressed_Tilemap,
 }
-
-Cel_Type :: union{ Raw_Cel, Linked_Cel, Com_Image_Cel, Com_Tilemap_Cel }
-
+Cel_Type :: union{ Raw_Cel, Linked_Cel, Com_Image_Cel, Com_Tilemap_Cel}
 Cel_Chunk :: struct {
     layer_index: WORD,
-    x: SHORT,
-    y: SHORT,
+    x,y: SHORT,
     opacity_level: BYTE,
-    type:    Cel_Types,
-    z_index: SHORT, // 0=default, pos=show n layers later, neg=back
-    cel:     Cel_Type,
+    type: Cel_Types,
+    z_index: SHORT, //0=default, pos=show n layers later, neg=back
+    cel: Cel_Type,
 }
 
 
-Cel_Extra_Flag  :: enum(DWORD){ Precise }
-Cel_Extra_Flags :: bit_set[Cel_Extra_Flag; DWORD]
-
+Cel_Extra_Flag :: enum(WORD){Precise}
+Cel_Extra_Flags :: bit_set[Cel_Extra_Flag; WORD]
 Cel_Extra_Chunk :: struct {
-    flags:  Cel_Extra_Flags,
-    x:      FIXED,
-    y:      FIXED,
-    width:  FIXED, 
+    flags: Cel_Extra_Flags,
+    x: FIXED,
+    y: FIXED,
+    width: FIXED, 
     height: FIXED,
 }
 
 
 ICC_Profile :: distinct []byte
-
-Color_Profile_Flag  :: enum(WORD){ Special_Fixed_Gamma }
+Color_Profile_Flag :: enum(WORD){Special_Fixed_Gamma}
 Color_Profile_Flags :: bit_set[Color_Profile_Flag; WORD]
-
 Color_Profile_Type :: enum(WORD) {
     None,
     sRGB,
     ICC,
 }
-
 Color_Profile_Chunk :: struct {
-    type:  Color_Profile_Type,
+    type: Color_Profile_Type,
     flags: Color_Profile_Flags,
     fixed_gamma: FIXED,
     // TODO: Yay more libs to make, https://www.color.org/icc1v42.pdf
-    icc:   Maybe(ICC_Profile),
+    icc: Maybe(ICC_Profile),
 }
 
 
-ExF_Entry_Type :: enum(BYTE) {
+ExF_Entry_Type :: enum(BYTE){
     Palette,
     Tileset,
     Properties_Name,
     Tile_Manegment_Name,
 }
-
-External_Files_Entry :: struct {
-    id:   DWORD,
+External_Files_Entry :: struct{
+    id: DWORD,
     type: ExF_Entry_Type,
     file_name_or_id: STRING,
 }
-
 External_Files_Chunk :: []External_Files_Entry
 
 
 Mask_Chunk :: struct {
-    x: SHORT,
-    y: SHORT,
-    width:  WORD, 
-    height: WORD,
-    name:   string,
+    x,y: SHORT,
+    width, height: WORD,
+    name: string,
     bit_map_data: []BYTE, //size = height*((width+7)/8)
 }
 
 
-Path_Chunk :: struct { } // never used
+Path_Chunk :: struct{} // never used
 
 
-Tag_Loop_Dir :: enum(BYTE) {
+Tag_Loop_Dir :: enum(BYTE){
     Forward,
     Reverse,
     Ping_Pong,
     Ping_Pong_Reverse,
 }
-
 Tag :: struct{
     from_frame: WORD,
-    to_frame:   WORD,
+    to_frame: WORD,
     loop_direction: Tag_Loop_Dir,
-    repeat:     WORD,
-    tag_color:  Color_RGB,
-    name:       string,
+    repeat: WORD,
+    tag_color: Color_RGB,
+    name: string,
 }
-
 Tags_Chunk :: []Tag
 
 
-Pal_Flag  :: enum(WORD){ Has_Name }
+Pal_Flag :: enum(WORD){Has_Name}
 Pal_Flags :: bit_set[Pal_Flag; WORD]
-
 Palette_Entry :: struct {
     color: Color_RGBA,
-    name:  Maybe(string),
+    name: Maybe(string),
 }
-
 Palette_Chunk :: struct {
-    size:        DWORD,
+    size: DWORD,
     first_index: DWORD,
-    last_index:  DWORD,
-    entries:     []Palette_Entry,
+    last_index: DWORD,
+    entries: []Palette_Entry,
 }
 
 
 // Vec_Diff :: struct{type: WORD, data: UD_Property_Value}
 // UD_Vec :: union {[]UD_Property_Value, []Vec_Diff}
 UD_Vec :: []Property_Value
-
 Property_Type :: enum(WORD) {
     Null, Bool, I8, U8, I16, U16, I32, U32, I64, U64,
     Fixed, F32, F64, String, Point, Size, Rect, 
     Vector, Properties, UUID, 
 }
-
 Property_Value :: union {
     bool, i8, BYTE, SHORT, WORD, LONG, DWORD, LONG64, QWORD, FIXED, FLOAT,
     DOUBLE, STRING, POINT, SIZE, RECT, UUID,  
     UD_Vec, Properties, 
 }
-
-Properties     :: map[string]Property_Value
+Properties :: map[string]Property_Value
 Properties_Map :: map[DWORD]Property_Value
-
 UD_Flag :: enum(DWORD) {
     Text,
     Color,
     Properties,
 }
 UD_Flags :: bit_set[UD_Flag; DWORD]
-
 User_Data_Chunk :: struct {
-    text:  Maybe(string), 
+    text: Maybe(string), 
     color: Maybe(Color_RGBA), 
-    maps:  Maybe(Properties_Map),
+    maps: Maybe(Properties_Map),
 }
 
 
-Slice_Center :: struct {
+Slice_Center :: struct{
     x: LONG,
     y: LONG, 
-    width:  DWORD, 
+    width: DWORD, 
     height: DWORD,
 }
-
 Slice_Pivot :: distinct POINT
-
-Slice_Key :: struct {
+Slice_Key :: struct{
     frame_num: DWORD,
     x: LONG,
     y: LONG, 
-    width:  DWORD, 
+    width: DWORD, 
     height: DWORD,
     center: Maybe(Slice_Center),
-    pivot:  Maybe(Slice_Pivot),
+    pivot: Maybe(Slice_Pivot),
 }
-
 Slice_Flag :: enum(DWORD) {
     Patched_slice, 
     Pivot_Information,
 }
 Slice_Flags :: bit_set[Slice_Flag; DWORD]
-
 Slice_Chunk :: struct {
     flags: Slice_Flags,
-    name:  string,
-    keys:  []Slice_Key,
+    name: string,
+    keys: []Slice_Key,
 }
 
 
@@ -518,22 +467,18 @@ Tileset_Flag :: enum(DWORD) {
     Auto_Mode_Diagonal_Flip_Match,
 }
 Tileset_Flags :: bit_set[Tileset_Flag; DWORD]
-
-Tileset_External :: struct {
-    file_id:    DWORD, 
-    tileset_id: DWORD,
+Tileset_External :: struct{
+    file_id, tileset_id: DWORD,
 }
-
 Tileset_Compressed :: distinct []PIXEL
-
 Tileset_Chunk :: struct {
     id: DWORD,
-    flags:        Tileset_Flags,
+    flags: Tileset_Flags,
     num_of_tiles: DWORD,
-    width:        WORD, 
-    height:       WORD,
-    base_index:   SHORT,
-    name:         string,
-    external:     Maybe(Tileset_External), 
-    compressed:   Maybe(Tileset_Compressed),
+    width: WORD, 
+    height: WORD,
+    base_index: SHORT,
+    name: string,
+    external: Maybe(Tileset_External), 
+    compressed: Maybe(Tileset_Compressed),
 }
