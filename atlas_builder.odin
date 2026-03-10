@@ -694,7 +694,7 @@ main :: proc() {
 	pack_rects_items: [dynamic]Pack_Rect_Item
 
 	if font_data, error := os.read_entire_file_from_path(FONT_FILENAME, context.allocator);
-	   error != os.ERROR_NONE {
+	   error == os.ERROR_NONE {
 		fi: stbtt.fontinfo
 		if stbtt.InitFont(&fi, raw_data(font_data), 0) {
 			scale_factor := stbtt.ScaleForPixelHeight(&fi, FONT_SIZE)
