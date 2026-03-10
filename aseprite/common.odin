@@ -6,12 +6,17 @@ import "core:mem/virtual"
 @(require) import "core:log"
 
 
+ASE_DEBUG_MODE     :: #config(ASE_DEBUG, ODIN_DEBUG)
+ASE_DEBUG_MESSAGES :: #config(ASE_DEBUG_MESSAGES, ASE_DEBUG_MODE)
+
+
 @(private)
 destroy_value :: proc(p: ^Property_Value, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
     context.allocator = alloc
     #partial switch &val in p {
     case string:
         delete(val) or_return
+        
     case UD_Vec:
         for &v in val {
             destroy_value(&v) or_return
