@@ -2,7 +2,7 @@
 Handler for Aseprite's `.ase`/`.aseprite`, `.aseprite-extension` &amp; extended `.gpl` files writen in Odin.   
 
 * `.\`: Main un/marshaler for `.ase`
-* `.\utils`: Creates Images & Animations from Documents
+* `.\utils`: Creates Images, Animations & Sprite Sheets from Documents
 * `.\raw`: un/marshals `.ase` exactly as given by the spec
 * `.\gpl`: extended & normal .gpl   
 * `.\extensions`: .aseprite-extension. WIP   

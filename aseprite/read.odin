@@ -229,12 +229,9 @@ read_pixels :: proc(r: io.Reader, data: []PIXEL, n: ^int) -> (err: Read_Error) {
 
 read_tile :: proc(r: io.Reader, type: Tile_ID, n: ^int) -> (data: TILE, err: Read_Error) { 
     switch type {
-    case .byte:
-        data = read_byte(r, n) or_return
-    case .word:
-        data = read_word(r, n) or_return
-    case .dword:
-        data = read_dword(r, n) or_return
+    case .byte:  data = read_byte(r, n) or_return
+    case .word:  data = read_word(r, n) or_return
+    case .dword: data = read_dword(r, n) or_return
     }
     return 
 }
@@ -244,6 +241,7 @@ read_tiles :: proc(r: io.Reader, data: []TILE, type: Tile_ID, n: ^int) -> (err: 
     if len(data) == 0 {
         return
     }
+
     for i in 0..<size {
         data[i] = read_tile(r, type, n) or_return
     }
@@ -260,9 +258,6 @@ read_bytes :: proc(r: io.Reader, data: []byte, n: ^int) -> (err: Read_Error) {
 }
 
 read_skip :: proc(r: io.Reader, to_skip: int, n: ^int) -> (err: Read_Error) {
-    // i := io.seek(r, i64(n^+to_skip), .Current) or_return
-    // n^ += int(i)
-
     for _ in 0..<to_skip {
         io.read_byte(r, n) or_return
     }
@@ -290,7 +285,7 @@ read_ud_value :: proc(r: io.Reader, type: Property_Type, n: ^int, alloc := conte
     case .Point:  return read_point(r, n)
     case .Size:   return read_size(r, n)
     case .Rect:   return read_rect(r, n)
-    case .UUID:   return read_uuid(r, n)
+    case .UUID:   return read_uuid (r, n)
 
     case .Vector:
         num := int(read_dword(r, n) or_return)
@@ -302,6 +297,7 @@ read_ud_value :: proc(r: io.Reader, type: Property_Type, n: ^int, alloc := conte
                 prop_type := Property_Type(read_word(r, n) or_return)
                 val.(UD_Vec)[i] = read_ud_value(r, prop_type, n) or_return
             }
+
         } else {
             for i in 0..<num {
                 val.(UD_Vec)[i] = read_ud_value(r, vec_type, n) or_return
@@ -322,5 +318,7 @@ read_ud_value :: proc(r: io.Reader, type: Property_Type, n: ^int, alloc := conte
             }
         }
     }
+
     return
 }
+

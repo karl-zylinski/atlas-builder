@@ -90,7 +90,7 @@ read_old_palette_64 :: proc(r: io.Reader, rt: ^int, allocator := context.allocat
     return
 }
 
-read_layer :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> (chunk: Layer_Chunk, err: Unmarshal_Error) {
+read_layer :: proc(r: io.Reader, rt: ^int, has_uuid: bool, allocator := context.allocator) -> (chunk: Layer_Chunk, err: Unmarshal_Error) {
     chunk.flags = transmute(Layer_Chunk_Flags)read_word(r, rt) or_return
     chunk.type = Layer_Types(read_word(r, rt) or_return)
     chunk.child_level = read_word(r, rt) or_return
@@ -104,6 +104,10 @@ read_layer :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> (c
     if chunk.type == .Tilemap {
         chunk.tileset_index = read_dword(r, rt) or_return
     }
+    if has_uuid {
+        chunk.uuid = read_uuid(r, rt) or_return
+    }
+
     return
 }
 
@@ -122,7 +126,7 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
         cel: Raw_Cel
         cel.width = read_word(r, rt) or_return
         cel.height = read_word(r, rt) or_return
-        cel.pixels = make([]PIXEL, int(cel.width * cel.height)) or_return
+        cel.pixels = make([]PIXEL, (color_depth / 8) * int(cel.width) * int(cel.height)) or_return
         read_bytes(r, cel.pixels[:], rt) or_return
         chunk.cel = cel
 
@@ -148,7 +152,7 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
 
         read_bytes(r, data[:], rt) or_return
 
-        exp_size := color_depth / 8 * int(cel.height) * int(cel.width)
+        exp_size := (color_depth / 8) * int(cel.height) * int(cel.width)
         zlib.inflate(data[:], &buf, expected_output_size=exp_size) or_return
 
         cel.pixels = make([]byte, exp_size) or_return
@@ -200,11 +204,12 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
 }
 
 read_cel_extra :: proc(r: io.Reader, rt: ^int) -> (chunk: Cel_Extra_Chunk, err: Unmarshal_Error) {
-    chunk.flags = transmute(Cel_Extra_Flags)read_word(r, rt) or_return
+    chunk.flags = transmute(Cel_Extra_Flags)read_dword(r, rt) or_return
     chunk.x = read_fixed(r, rt) or_return
     chunk.y = read_fixed(r, rt) or_return
     chunk.width = read_fixed(r, rt) or_return
     chunk.height = read_fixed(r, rt) or_return
+    read_skip(r, 16, rt) or_return
     return
 }
 
@@ -268,11 +273,13 @@ read_tags :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> (ch
         tag.to_frame = read_word(r, rt) or_return
         tag.loop_direction = Tag_Loop_Dir(read_byte(r, rt) or_return)
         tag.repeat = read_word(r, rt) or_return
+
         read_skip(r, 6, rt) or_return
         read_bytes(r, tag.tag_color[:], rt) or_return
         read_byte(r, rt) or_return
         tag.name = read_string(r, rt, allocator) or_return
     }
+
     return
 }
 
@@ -292,6 +299,7 @@ read_palette :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> 
             entry.name = read_string(r, rt, allocator) or_return
         }
     }
+
     return
 }
 
@@ -313,6 +321,7 @@ read_user_data :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -
         read_skip(r, 4, rt) or_return
         map_num := read_dword(r, rt) or_return
         maps := make(Properties_Map, map_num) or_return
+
         for _ in 0..<map_num {
             key := read_dword(r, rt) or_return
 
@@ -330,6 +339,7 @@ read_user_data :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -
         }
         chunk.maps = maps
     }
+
     return
 }
 
@@ -364,6 +374,7 @@ read_slice :: proc(r: io.Reader, rt: ^int, alloc := context.allocator) -> (chunk
             key.pivot = p
         }
     }
+
     return
 }
 
@@ -383,6 +394,7 @@ read_tileset :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> 
         ex.tileset_id = read_dword(r, rt) or_return
         chunk.external = ex
     }
+
     if .Include_Tiles_Inside_This_File in chunk.flags {
         size := int(read_dword(r, rt) or_return)
 
@@ -390,6 +402,7 @@ read_tileset :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> 
 
         data := make([]byte, size, allocator) or_return
         defer delete(data)
+
         read_bytes(r, data, rt) or_return
 
         zlib.inflate_from_byte_array(data, &buf) or_return
@@ -405,5 +418,7 @@ read_tileset :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> 
         chunk.compressed = (Tileset_Compressed)(buf.buf[buf.off:])
 
     }
+
     return
 }
+
