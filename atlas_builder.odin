@@ -323,6 +323,26 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 		log.error("Document is indexed, but found no palette!")
 	}
 
+	visible_layers := make(map[u16]bool)
+	defer delete(visible_layers)
+	layer_index : u16
+	for f in doc.frames {
+		for &c in f.chunks {
+			#partial switch &c in c {
+			case ase.Layer_Chunk:
+				if ase.Layer_Chunk_Flag.Visiable in c.flags {
+					visible_layers[layer_index] = true
+				}
+				layer_index += 1
+			}
+		}
+	}
+
+	if len(visible_layers) == 0 {
+		log.error("No visible layers in document", filename)
+		return {}, false
+	}
+
 	combined_layers := Image {
 		data = make([]Color, int(doc.header.width*doc.header.height)),
 		width = int(doc.header.width),
@@ -335,8 +355,10 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 		for &c in f.chunks {
 			#partial switch &cv in c {
 			case ase.Cel_Chunk:
-				if _, ok := cv.cel.(ase.Com_Image_Cel); ok {
-					append(&cels, &cv)
+				if cv.layer_index in visible_layers {
+					if _, ok := cv.cel.(ase.Com_Image_Cel); !ok {
+						append(&cels, &cv)
+					}
 				}
 			}
 		}
