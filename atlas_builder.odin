@@ -295,17 +295,16 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 		log.error("Failed loading tileset", filename)
 		return {}, false
 	}
-
 	defer delete(data)
-	doc: ase.Document
 
+	doc: ase.Document
 	umerr := ase.unmarshal(&doc, data[:])
+	defer ase.destroy_doc(&doc)
+
 	if umerr != nil {
 		log.error("Aseprite unmarshal error", umerr)
 		return {}, false
 	}
-
-	defer ase.destroy_doc(&doc)
 
 	indexed := doc.header.color_depth == .Indexed
 	palette: ase.Palette_Chunk
@@ -330,45 +329,54 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 		height = int(doc.header.height),
 	}
 
-	for f in doc.frames {
-		for c in f.chunks {
-			#partial switch cv in c {
-				case ase.Cel_Chunk:
-					if cl, ok := cv.cel.(ase.Com_Image_Cel); ok {
-						cel_pixels: []Color
+	for &f in doc.frames {
+		cels: [dynamic]^ase.Cel_Chunk
 
-						if indexed {
-							cel_pixels = make([]Color, int(cl.width) * int(cl.height))
-							for p, idx in cl.pixels {
-								if p == 0 {
-									continue
-								}
-								
-								cel_pixels[idx] = Color(palette.entries[u32(p)].color)
-							}
-						} else {
-							cel_pixels = slice.reinterpret([]Color, cl.pixels)
-						}
-
-						from := Image {
-							data = cel_pixels,
-							width = int(cl.width),
-							height = int(cl.height),
-						}
-
-						source := Rect {
-							0, 0,
-							int(cl.width), int(cl.height),
-						}
-
-						dest_pos := Vec2i {
-							int(cv.x),
-							int(cv.y),
-						}
-
-						draw_image(&combined_layers, from, source, dest_pos)
-					}
+		for &c in f.chunks {
+			#partial switch &cv in c {
+			case ase.Cel_Chunk:
+				if _, ok := cv.cel.(ase.Com_Image_Cel); ok {
+					append(&cels, &cv)
+				}
 			}
+		}
+
+		slice.sort_by(cels[:], cel_layer_sort)
+
+		for cv in cels {
+			cl := cv.cel.(ase.Com_Image_Cel)
+			cel_pixels: []Color
+
+			if indexed {
+				cel_pixels = make([]Color, int(cl.width) * int(cl.height))
+				for p, idx in cl.pixels {
+					if p == 0 {
+						continue
+					}
+					
+					cel_pixels[idx] = Color(palette.entries[u32(p)].color)
+				}
+			} else {
+				cel_pixels = slice.reinterpret([]Color, cl.pixels)
+			}
+
+			from := Image {
+				data = cel_pixels,
+				width = int(cl.width),
+				height = int(cl.height),
+			}
+
+			source := Rect {
+				0, 0,
+				int(cl.width), int(cl.height),
+			}
+
+			dest_pos := Vec2i {
+				int(cv.x),
+				int(cv.y),
+			}
+
+			draw_image(&combined_layers, from, source, dest_pos)	
 		}
 	}
 
@@ -390,14 +398,13 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	}
 
 	doc: ase.Document
-
 	umerr := ase.unmarshal(&doc, data[:])
+	defer ase.destroy_doc(&doc)
+
 	if umerr != nil {
 		log.error("Aseprite unmarshal error", umerr)
 		return
 	}
-
-	defer ase.destroy_doc(&doc)
 
 	document_rect := Rect {
 		0, 0,
@@ -484,9 +491,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 			continue
 		}
 
-		slice.sort_by(cels[:], proc(i, j: ^ase.Cel_Chunk) -> bool {
-			return i.layer_index < j.layer_index
-		})
+		slice.sort_by(cels[:], cel_layer_sort)
 
 		s := cel_max - cel_min
 		pixels := make([]Color, int(s.x*s.y))
@@ -619,6 +624,14 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 	append(textures, td)
 }
+
+cel_layer_sort :: proc(i, j: ^ase.Cel_Chunk) -> bool {
+	// https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md#note5
+	ior := i.layer_index + ase.WORD(i.z_index)
+	jor := j.layer_index + ase.WORD(j.z_index)
+	return ior < jor || (ior == jor && i.z_index < j.z_index )
+}
+
 
 default_context: runtime.Context
 
