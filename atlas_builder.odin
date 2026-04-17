@@ -510,6 +510,19 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		}
 
 		if len(cels) == 0 {
+			td := Texture_Data {
+				source_size = {0, 0},
+				source_offset = {0, 0},
+				pixels_size = {0, 0},
+				document_size = {int(doc.header.width), int(doc.header.height)},
+				duration = duration,
+				name = animated ? fmt.tprint(base_name, frame_idx, sep = "") : base_name,
+				pixels = nil,
+			}
+      
+			append(textures, td)
+			frame_idx += 1
+      
 			continue
 		}
 
