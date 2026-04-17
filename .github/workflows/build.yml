@@ -27,7 +27,7 @@ jobs:
     name: MacOS
     strategy:
       matrix:
-        os: [macos-13, macos-15]
+        os: [macos-15, macos-15-intel]
     runs-on: ${{matrix.os}}
     steps:
       - uses: laytan/setup-odin@v2
