@@ -143,6 +143,7 @@ Animation :: struct {
 	document_size:  Vec2i,
 	loop_direction: ase.Tag_Loop_Dir,
 	repeat:         u16,
+	user_data:      Maybe(ase.User_Data_Chunk),
 }
 
 Image :: struct {
@@ -400,6 +401,7 @@ load_ase_texture_data :: proc(
 	filename: string,
 	textures: ^[dynamic]Texture_Data,
 	animations: ^[dynamic]Animation,
+	userdatas: ^[dynamic]ase.User_Data_Chunk,
 ) {
 	data, error := os.read_entire_file_from_path(filename, context.allocator)
 
@@ -490,10 +492,54 @@ load_ase_texture_data :: proc(
 						last_texture   = fmt.tprint(base_name, tag.to_frame, sep = ""),
 						loop_direction = tag.loop_direction,
 						repeat         = tag.repeat,
+						user_data      = nil,
 					}
 
 					skip_writing_main_anim = true
+
+					// if we have encountered ud before, we wan to add it to the animation
+					// but since we don't want to attach it just yet we need to fetch the next_index it would have
+
+					index := len(animations)
 					append(animations, a)
+					if (len(userdatas) > index) {
+						animations[index].user_data = userdatas[index]
+					}
+				}
+
+			case ase.User_Data_Chunk:
+				index := len(userdatas)
+				append(userdatas, c)
+
+
+				// if the animation at this index has been created, add this ud to it
+				if (len(animations) > index) {
+					if animations[index].user_data == nil {
+
+						cloned_text: Maybe(string)
+						if t, ok := c.text.?; ok {
+							cloned_text = strings.clone(t)
+						}
+
+						cloned_maps: Maybe(ase.Properties_Map)
+						if m, ok := c.maps.?; ok {
+							// tbh, i am note 100% sure where, if at all, to cleanly dealloc this
+							cloned_map := make(ase.Properties_Map)
+							for key, value in m {
+								cloned_map[key] = value
+							}
+						}
+						animations[index].user_data = ase.User_Data_Chunk {
+							color = c.color,
+							maps  = cloned_maps,
+							text  = cloned_text,
+						}
+					} else {
+						log.errorf(
+							"Trying to append userdata to animation %d but already occupied ? ",
+							index,
+						)
+					}
 				}
 			}
 		}
@@ -658,6 +704,7 @@ main :: proc() {
 	start_time := time.now()
 	textures: [dynamic]Texture_Data
 	animations: [dynamic]Animation
+	userDatas: [dynamic]ase.User_Data_Chunk
 
 	dir_path_to_file_infos :: proc(path: string) -> []os.File_Info {
 		d, derr := os.open(path, os.O_RDONLY)
@@ -710,7 +757,7 @@ main :: proc() {
 					append(&tilesets, t)
 				}
 			} else if is_ase {
-				load_ase_texture_data(path, &textures, &animations)
+				load_ase_texture_data(path, &textures, &animations, &userDatas)
 			} else if is_png {
 				load_png_texture_data(path, &textures)
 			}
@@ -1169,12 +1216,22 @@ main :: proc() {
 
 	fmt.fprintln(f, "// Any aseprite file with frames will create new animations. Also, any tags")
 	fmt.fprintln(f, "// within the aseprite file will make that that into a separate animation.")
+
+
+	fmt.fprintln(f, "Animation_userdata :: struct {")
+	fmt.fprintln(f, "\ttext: Maybe(string),")
+	fmt.fprintln(f, "\tcolor: Maybe([4]u8),")
+	fmt.fprintln(f, "\t//TODO: add maps,")
+	fmt.fprintln(f, "}")
+
+	fmt.fprintln(f, "")
 	fmt.fprintln(f, "Atlas_Animation :: struct {")
 	fmt.fprintln(f, "\tfirst_frame: Texture_Name,")
 	fmt.fprintln(f, "\tlast_frame: Texture_Name,")
 	fmt.fprintln(f, "\tdocument_size: [2]f32,")
 	fmt.fprintln(f, "\tloop_direction: Tag_Loop_Dir,")
 	fmt.fprintln(f, "\trepeat: u16,")
+	fmt.fprintln(f, "\tuserdata: Maybe(Animation_userdata),")
 	fmt.fprintln(f, "}")
 	fmt.fprintln(f, "")
 
@@ -1182,9 +1239,25 @@ main :: proc() {
 	fmt.fprint(f, "\t.None = {},\n")
 
 	for a in animations {
+		ud_str: string
+		if ud, ok := a.user_data.?; ok {
+			text := "nil"
+			color := "nil"
+			if t, ok1 := ud.text.?; ok1 {
+				text = fmt.tprintf("\"%s\"", t)
+			}
+			if c, ok2 := ud.color.?; ok2 {
+				color = fmt.tprintf("[4]u8{{%d, %d, %d, %d}}", c[0], c[1], c[2], c[3])
+			}
+			// TODO: serialize maps, i am too lazy to make that kind of "to_string" function
+
+			ud_str = fmt.tprintf("Animation_userdata{{ text = %s, color = %s }}", text, color)
+		} else {
+			ud_str = "nil"
+		}
 		fmt.fprintf(
 			f,
-			"\t.%v = {{ first_frame = .%v, last_frame = .%v, loop_direction = .%v, repeat = %v, document_size = {{%v, %v}} }},\n",
+			"\t.%v = {{ first_frame = .%v, last_frame = .%v, loop_direction = .%v, repeat = %v, document_size = {{%v, %v}}, userdata = %s }},\n",
 			a.name,
 			a.first_texture,
 			a.last_texture,
@@ -1192,6 +1265,7 @@ main :: proc() {
 			a.repeat,
 			a.document_size.x,
 			a.document_size.y,
+			ud_str,
 		)
 	}
 
