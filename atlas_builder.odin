@@ -1244,7 +1244,7 @@ main :: proc() {
 			text := "nil"
 			color := "nil"
 			if t, ok1 := ud.text.?; ok1 {
-				text = fmt.tprintf("\"%s\"", t)
+				text = fmt.tprintf("%q", t)
 			}
 			if c, ok2 := ud.color.?; ok2 {
 				color = fmt.tprintf("[4]u8{{%d, %d, %d, %d}}", c[0], c[1], c[2], c[3])
