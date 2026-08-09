@@ -226,12 +226,13 @@ _destroy_palette :: proc(c: Palette_Chunk, alloc := context.allocator) -> (err: 
 
 @(private)
 _destroy_user_data :: proc(c: User_Data_Chunk, alloc := context.allocator) -> (err: runtime.Allocator_Error) {
-    switch &s in c.text {
+    _c := c
+    switch s in c.text {
     case string:
         delete(s, alloc) or_return
     }
 
-    switch &m in c.maps {
+    switch &m in _c.maps {
     case Properties_Map:
         for _, &val in m {
             destroy_value(&val, alloc) or_return
