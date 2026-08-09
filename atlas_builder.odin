@@ -743,6 +743,12 @@ main :: proc() {
 		is_png := strings.has_suffix(fi.name, ".png")
 		if is_ase || is_png {
 			path := fmt.tprintf("%s/%s", TEXTURES_DIR, fi.name)
+
+			// Skip output file if it's in the input directory
+			if path == ATLAS_PNG_OUTPUT_PATH {
+				continue
+			}
+
 			if strings.has_prefix(fi.name, "tileset") {
 				t: Tileset
 				t_ok: bool
