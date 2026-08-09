@@ -296,8 +296,24 @@ document_to_palette :: proc (doc: ase.Document, allocator := context.allocator) 
 		}
 	}
 
-	if len(palette.entries) == 0 {
-		log.error("Document is indexed, but found no palette!")
+	return
+}
+
+document_to_visible_layers :: proc (doc: ase.Document, allocator := context.allocator) -> (visible_layers: map[u16]bool) {
+
+	visible_layers = make(map[u16]bool, allocator)
+	layer_index: u16
+
+	for f in doc.frames {
+		for &c in f.chunks {
+			#partial switch &c in c {
+			case ase.Layer_Chunk:
+				if ase.Layer_Chunk_Flag.Visiable in c.flags {
+					visible_layers[layer_index] = true
+				}
+				layer_index += 1
+			}
+		}
 	}
 
 	return
@@ -362,21 +378,12 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 	}
 
 	palette, indexed := document_to_palette(doc)
-
-	visible_layers := make(map[u16]bool)
-	defer delete(visible_layers)
-	layer_index : u16
-	for f in doc.frames {
-		for &c in f.chunks {
-			#partial switch &c in c {
-			case ase.Layer_Chunk:
-				if ase.Layer_Chunk_Flag.Visiable in c.flags {
-					visible_layers[layer_index] = true
-				}
-				layer_index += 1
-			}
-		}
+	if indexed && len(palette.entries) == 0 {
+		log.error("Document is indexed, but found no palette!")
 	}
+
+	visible_layers := document_to_visible_layers(doc)
+	defer delete(visible_layers)
 
 	if len(visible_layers) == 0 {
 		log.error("No visible layers in document", filename)
@@ -479,21 +486,12 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	skip_writing_main_anim := false
 
 	palette, indexed := document_to_palette(doc)
-
-	visible_layers := make(map[u16]bool)
-	defer delete(visible_layers)
-	layer_index : u16
-	for f in doc.frames {
-		for &c in f.chunks {
-			#partial switch &c in c {
-			case ase.Layer_Chunk:
-				if ase.Layer_Chunk_Flag.Visiable in c.flags {
-					visible_layers[layer_index] = true
-				}
-				layer_index += 1
-			}
-		}
+	if indexed && len(palette.entries) == 0 {
+		log.error("Document is indexed, but found no palette!")
 	}
+
+	visible_layers := document_to_visible_layers(doc)
+	defer delete(visible_layers)
 
 	if len(visible_layers) == 0 {
 		log.error("No visible layers in document", filename)
