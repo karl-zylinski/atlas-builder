@@ -487,9 +487,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	}
 
 	base_name := asset_name(filename)
-	frame_idx := 0
 	animated := len(doc.frames) > 1
-	skip_writing_main_anim := false
 
 	palette, indexed := document_to_palette(doc)
 	if indexed && len(palette.entries) == 0 {
@@ -504,153 +502,187 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		return
 	}
 
-	for f in doc.frames {
-		duration: f32 = f32(f.header.duration)/1000.0
+	// Collect slices from first frame
+	Slice_Info :: struct {
+		name:        string,
+		rect:        Rect,
+		is_document: bool,
+	}
+	slices: [dynamic]Slice_Info
+	for c in doc.frames[0].chunks {
+		slice_chunk := c.(ase.Slice_Chunk) or_continue
+		if len(slice_chunk.keys) == 0 { continue }
+		key := slice_chunk.keys[0]
+		append(&slices, Slice_Info{
+			strings.to_ada_case(slice_chunk.name),
+			Rect{int(key.x), int(key.y), int(key.width), int(key.height)},
+			false,
+		})
+	}
 
-		cels: [dynamic]^ase.Cel_Chunk
-		cel_min := Vec2i { max(int), max(int) }
-		cel_max := Vec2i { min(int), min(int) }
+	// If no slices, create a document-wide slice
+	if len(slices) == 0 {
+		append(&slices, Slice_Info{base_name, document_rect, true})
+	}
 
-		for &c in f.chunks {
-			#partial switch &c in c {
-			case ase.Cel_Chunk:
-				if c.layer_index in visible_layers {
-					if cl, ok := &c.cel.(ase.Com_Image_Cel); ok {
-						cel_min.x = min(cel_min.x, int(c.x))
-						cel_min.y = min(cel_min.y, int(c.y))
-						cel_max.x = max(cel_max.x, int(c.x) + int(cl.width))
-						cel_max.y = max(cel_max.y, int(c.y) + int(cl.height))
-						append(&cels, &c)
-					}
-				}
-			case ase.Tags_Chunk:
-				for tag in c {
-					a := Animation {
-						name = fmt.tprint(base_name, strings.to_ada_case(tag.name), sep = "_"),
-						first_texture = fmt.tprint(base_name, tag.from_frame, sep = ""),
-						last_texture = fmt.tprint(base_name, tag.to_frame, sep = ""),
-						loop_direction = tag.loop_direction,
-						repeat = tag.repeat,
-					}
+	rect_intersect :: proc(r1, r2: Rect) -> Rect {
+		x1 := max(r1.x, r2.x)
+		y1 := max(r1.y, r2.y)
+		x2 := min(r1.x + r1.width,  r2.x + r2.width)
+		y2 := min(r1.y + r1.height, r2.y + r2.height)
+		if x2 < x1 { x2 = x1 }
+		if y2 < y1 { y2 = y1 }
+		return {x1, y1, x2 - x1, y2 - y1}
+	}
 
-					skip_writing_main_anim = true
-					append(animations, a)
+	// Process tags for animations
+	skip_writing_main_anim := false
+	for c in doc.frames[0].chunks {
+		tag_chunk := c.(ase.Tags_Chunk) or_continue
+		for tag in tag_chunk {
+			a := Animation {
+				name           = fmt.tprint(base_name, strings.to_ada_case(tag.name), sep="_"),
+				first_texture  = fmt.tprint(base_name, tag.from_frame, sep=""),
+				last_texture   = fmt.tprint(base_name, tag.to_frame, sep=""),
+				loop_direction = tag.loop_direction,
+				repeat         = tag.repeat,
+			}
+			skip_writing_main_anim = true
+			append(animations, a)
+		}
+	}
+
+	// Process each slice
+	for slice_info in slices {
+		frame_idx := 0
+		is_document_slice := slice_info.is_document
+
+		for f in doc.frames {
+			duration: f32 = f32(f.header.duration)/1000.0
+
+			// Get visible cels for this frame and sort by layer
+			cels: [dynamic]^ase.Cel_Chunk
+			cel_min := Vec2i(max(int))
+			cel_max := Vec2i(min(int))
+			for &c in f.chunks {
+				#partial switch &c in c {
+				case ase.Cel_Chunk:
+					if c.layer_index not_in visible_layers do continue
+					cl := c.cel.(ase.Com_Image_Cel) or_continue
+					cel_min.x = min(cel_min.x, int(c.x))
+					cel_min.y = min(cel_min.y, int(c.y))
+					cel_max.x = max(cel_max.x, int(c.x) + int(cl.width))
+					cel_max.y = max(cel_max.y, int(c.y) + int(cl.height))
+					append(&cels, &c)
 				}
 			}
-		}
+			slice.sort_by(cels[:], cel_layer_sort)
 
-		if len(cels) == 0 {
+			if len(cels) == 0 {
+				td := Texture_Data {
+					source_size   = {0, 0},
+					source_offset = {0, 0},
+					pixels_size   = {0, 0},
+					document_size = {int(doc.header.width), int(doc.header.height)},
+					duration      = duration,
+					name          = fmt.tprint(slice_info.name, frame_idx, sep = "") if animated else slice_info.name,
+					pixels        = nil,
+				}
+				append(textures, td)
+				frame_idx += 1
+				continue
+			}
+
+			target_rect: Rect
+			if is_document_slice {
+				// For document slice, tightly crop to visible content
+				target_rect = {**cel_min, **(cel_max - cel_min)}
+			} else {
+				// For actual slices, use the full slice rect
+				target_rect = slice_info.rect
+			}
+
+			// Create target-sized image
+			slice_pixels := make([]Color, int(target_rect.width * target_rect.height))
+			slice_img := Image { data = slice_pixels, width = int(target_rect.width), height = int(target_rect.height) }
+
+			for c in cels {
+				cl := c.cel.(ase.Com_Image_Cel)
+				cel_rect := Rect { int(c.x), int(c.y), int(cl.width), int(cl.height) }
+
+				// Composite only the cels that intersect with target rect
+				intersection := rect_intersect(cel_rect, target_rect)
+				if intersection.width <= 0 || intersection.height <= 0 do continue
+
+				// Get cel pixels
+				cel_pixels: []Color
+				if indexed {
+					cel_pixels = make([]Color, int(cl.width) * int(cl.height))
+					for p, idx in cl.pixels {
+						if p == 0 { continue }
+						cel_pixels[idx] = Color(palette.entries[p].color)
+					}
+				} else {
+					cel_pixels = slice.reinterpret([]Color, cl.pixels)
+				}
+
+				// Draw the intersecting portion directly into slice image
+				from := Image { data = cel_pixels, width = int(cl.width), height = int(cl.height) }
+				source := Rect {
+					intersection.x - cel_rect.x,
+					intersection.y - cel_rect.y,
+					intersection.width,
+					intersection.height,
+				}
+				dest_pos := Vec2i {
+					intersection.x - target_rect.x,
+					intersection.y - target_rect.y,
+				}
+				draw_image(&slice_img, from, source, dest_pos)
+			}
+
+			// For document slice, calculate intersection with document bounds
+			source_size   := Vec2i{int(target_rect.width), int(target_rect.height)}
+			source_offset := Vec2i{0, 0}
+			if is_document_slice {
+				cels_rect := Rect{cel_min.x, cel_min.y, (cel_max - cel_min).x, (cel_max - cel_min).y}
+				doc_source_rect := rect_intersect(cels_rect, document_rect)
+				source_size   = {int(doc_source_rect.width), int(doc_source_rect.height)}
+				source_offset = {int(doc_source_rect.x - cels_rect.x), int(doc_source_rect.y - cels_rect.y)}
+			}
+
 			td := Texture_Data {
-				source_size = {0, 0},
-				source_offset = {0, 0},
-				pixels_size = {0, 0},
-				document_size = {int(doc.header.width), int(doc.header.height)},
-				duration = duration,
-				name = animated ? fmt.tprint(base_name, frame_idx, sep = "") : base_name,
-				pixels = nil,
+				source_size   = { source_size.x, source_size.y },
+				source_offset = { source_offset.x, source_offset.y },
+				pixels_size   = { int(target_rect.width), int(target_rect.height) },
+				document_size = { int(doc.header.width), int(doc.header.height) },
+				duration      = duration,
+				name          = fmt.tprint(slice_info.name, frame_idx, sep = "") if animated else slice_info.name,
+				pixels        = slice_pixels,
+			}
+
+			// For document slice, set offsets to indicate position in document
+			if is_document_slice {
+				if cel_min.x > 0 {
+					td.offset.x = cel_min.x
+				}
+				if cel_min.y > 0 {
+					td.offset.y = cel_min.y
+				}
 			}
 
 			append(textures, td)
 			frame_idx += 1
-
-			continue
 		}
 
-		slice.sort_by(cels[:], cel_layer_sort)
-
-		s := cel_max - cel_min
-		pixels := make([]Color, int(s.x*s.y))
-
-		combined_layers := Image {
-			data = pixels,
-			width = s.x,
-			height = s.y,
+		if animated && frame_idx > 1 && !skip_writing_main_anim {
+			append(animations, Animation {
+				name          = slice_info.name,
+				first_texture = fmt.tprint(slice_info.name, 0, sep=""),
+				last_texture  = fmt.tprint(slice_info.name, frame_idx - 1, sep=""),
+				document_size = { int(doc.header.width), int(doc.header.height) },
+			})
 		}
-
-		for c in cels {
-			cl := c.cel.(ase.Com_Image_Cel)
-			cel_pixels: []Color
-
-			if indexed {
-				cel_pixels = make([]Color, int(cl.width) * int(cl.height))
-				for p, idx in cl.pixels {
-					if p == 0 {
-						continue
-					}
-
-					cel_pixels[idx] = Color(palette.entries[u32(p)].color)
-				}
-			} else {
-				cel_pixels = slice.reinterpret([]Color, cl.pixels)
-			}
-
-			source := Rect {
-				0, 0,
-				int(cl.width), int(cl.height),
-			}
-
-			from := Image {
-				data = cel_pixels,
-				width = int(cl.width),
-				height = int(cl.height),
-			}
-
-			dest_pos := Vec2i {
-				int(c.x) - cel_min.x,
-				int(c.y) - cel_min.y,
-			}
-
-			draw_image(&combined_layers, from, source, dest_pos)
-		}
-
-		cels_rect := Rect {
-			cel_min.x, cel_min.y,
-			s.x, s.y,
-		}
-
-		rect_intersect :: proc(r1, r2: Rect) -> Rect {
-			x1 := max(r1.x, r2.x)
-			y1 := max(r1.y, r2.y)
-			x2 := min(r1.x + r1.width, r2.x + r2.width)
-			y2 := min(r1.y + r1.height, r2.y + r2.height)
-			if x2 < x1 { x2 = x1 }
-			if y2 < y1 { y2 = y1 }
-			return {x1, y1, x2 - x1, y2 - y1}
-		}
-
-		source_rect := rect_intersect(cels_rect, document_rect)
-
-		td := Texture_Data {
-			source_size = { int(source_rect.width), int(source_rect.height)},
-			source_offset = { int(source_rect.x - cels_rect.x), int(source_rect.y - cels_rect.y) },
-			pixels_size = s,
-			document_size = {int(doc.header.width), int(doc.header.height)},
-			duration = duration,
-			name = animated ? fmt.tprint(base_name, frame_idx, sep = "") : base_name,
-			pixels = pixels,
-		}
-
-		if cel_min.x > 0 {
-			td.offset.x = cel_min.x
-		}
-
-		if cel_min.y > 0 {
-			td.offset.y = cel_min.y
-		}
-
-		append(textures, td)
-		frame_idx += 1
-	}
-
-	if animated && frame_idx > 1 && !skip_writing_main_anim {
-		a := Animation {
-			name = base_name,
-			first_texture = fmt.tprint(base_name, 0, sep = ""),
-			last_texture = fmt.tprint(base_name, frame_idx - 1, sep = ""),
-			document_size = {int(document_rect.width), int(document_rect.height)},
-		}
-
-		append(animations, a)
 	}
 }
 
