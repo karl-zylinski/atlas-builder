@@ -286,7 +286,7 @@ old_palette_to_entries :: proc(
 
 document_to_palette :: proc (doc: ase.Document, allocator := context.allocator) -> (palette: ase.Palette_Chunk, indexed: bool) {
 
-	indexed = doc.header.color_depth != .Indexed
+	indexed = doc.header.color_depth == .Indexed
 	if !indexed do return
 
 	for f in doc.frames {
