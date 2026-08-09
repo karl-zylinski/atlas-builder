@@ -199,6 +199,12 @@ draw_image :: proc(to: ^Image, from: Image, source: Rect, pos: Vec2i) {
 			from_idx := sy * from.width + sx
 			to_idx := dy * to.width + dx
 
+			if from_idx < 0 || from_idx >= len(from.data) {
+				continue
+			}
+			if to_idx < 0 || to_idx >= len(to.data) {
+				continue
+			}
 
 			if to.data[to_idx].a == 0 {
 				to.data[to_idx] = from.data[from_idx]
