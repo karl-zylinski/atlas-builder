@@ -24,7 +24,7 @@ jobs:
       - name: Build and run atlas builder
         run: |
           cd example
-          ./run.sh
+          odin run ../atlas_builder.odin -file
 
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v7
