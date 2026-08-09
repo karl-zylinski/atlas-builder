@@ -1,0 +1,33 @@
+name: Update Example Atlas
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-atlas:
+    name: Update Example Atlas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Linux build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev
+
+      - name: Build and run atlas builder
+        run: |
+          cd example
+          ./run.sh
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: Update example atlas
+          file_pattern: "example/atlas.png example/atlas.odin"
