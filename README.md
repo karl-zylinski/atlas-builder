@@ -45,8 +45,8 @@ See the README.md in the `example` folder. But in short:
 - Put the contents of this repository in a folder.
 - Execute `odin run folder_name`
 - It looks for a `textures` folder and a `font.ttf` file in the current working directory.
-- `atlas.png` and `atlas.odin` are ouputted
-- Those files can be used within your game to do efficent atlased drawing. See the example for more info.
+- `atlas.png` and `atlas.odin` are outputted
+- Those files can be used within your game to do efficient atlased drawing. See the example for more info.
 
 The `textures`, `font.ttf`, `atlas.png` and `atlas.odin` paths can be edited by modifying the constants at the top of `atlas_builder.odin`.
 
@@ -58,7 +58,7 @@ There are a few constants at the top of `atlas_builder.odin`:
 - `ATLAS_PNG_OUTPUT_PATH`: Path to output the atlas PNG to
 - `ATLAS_ODIN_OUTPUT_PATH`: Path to output the atlas Odin metadata file to
 - `ATLAS_CROP`: If atlas should be cropped after generation. Default: true
-- `TILESET_SIZE`: If you have any texture prefixed with `tileset_`, it will be treated as a tileset. This setting says how many pixels each tile takes in the tileset. The tileset must have width and height that is divisble by this number.
+- `TILESET_SIZE`: If you have any texture prefixed with `tileset_`, it will be treated as a tileset. This setting says how many pixels each tile takes in the tileset. The tileset must have width and height that is divisible by this number.
 - `PACKAGE_NAME`: The package name to use at the top of the `atlas.odin` file.
 - `TEXTURES_DIR`: The folder in which to look for textures to put into atlas.
 - `LETTERS_IN_FONT`: The letters to extract from the font.
@@ -86,7 +86,7 @@ rl.DrawTexturePro(atlas, atlas_textures[.Bush].rect, destination_rect, rl.WHITE)
 
 This uses texture name "Bush" which will exist if there is a texture called `textures/bush.ase`. `atlas_textures` lives in `atlas.odin`.
 
-There's also four offsets on `atlas_textures[.Bush]`: `offset_top`, `offset_right`, `offset_bottom` and `offset_left`. The offsets records the distance between the pixels in the atlas and the edge of the original document in the image editing software. Since the atlas is tightly packed, any empty pixels are removed. These offsets can be used to correct for that removal. This saves atlas-space, since it would have to write empty pixels otherwise! Normally you'd need to add `{offset_left, offset_top}` to your position, but if you flip the texture in X or Y direction then you might need the `offset_right` or `offset_bottom`. See the [animation examples](#animations) for exampl I use it.
+There's also four offsets on `atlas_textures[.Bush]`: `offset_top`, `offset_right`, `offset_bottom` and `offset_left`. The offsets records the distance between the pixels in the atlas and the edge of the original document in the image editing software. Since the atlas is tightly packed, any empty pixels are removed. These offsets can be used to correct for that removal. This saves atlas-space, since it would have to write empty pixels otherwise! Normally you'd need to add `{offset_left, offset_top}` to your position, but if you flip the texture in X or Y direction then you might need the `offset_right` or `offset_bottom`. See the [animation examples](#animations) for example I use it.
 
 ## Atlas-based Raylib font
 
@@ -107,7 +107,7 @@ for ag, idx in atlas_glyphs {
 		offsetY = i32(ag.offset_y),
 		advanceX = i32(ag.advance_x),
 	}
-} 
+}
 
 font := rl.Font {
 	baseSize = ATLAS_FONT_SIZE,
@@ -129,12 +129,12 @@ Do this once at startup:
 rl.SetShapesTexture(atlas, shapes_texture_rect)
 ```
 
-After this whenever you call `rl.DrawRectangleRec` or any of the the other shape drawing procs, then they will use the atlas as well, avoiding separate draw calls for shapes.
+After this whenever you call `rl.DrawRectangleRec` or any of the other shape drawing procs, then they will use the atlas as well, avoiding separate draw calls for shapes.
 
 
 ## Animations
 
-There's an `atlas_animations` list. Any aseprite file that has more than one frame will be treated as an animation and added to that list. Also, tags within the ase file will result in separate animations. Each atlas animation entry knows which is the first and last texture in the animation. The animation update code then simply becomes to step to the next frame when necesarry. There's a duration on each Atlas_Texture struct that contains the duration of the frame as set in aseprite.
+There's an `atlas_animations` list. Any aseprite file that has more than one frame will be treated as an animation and added to that list. Also, tags within the ase file will result in separate animations. Each atlas animation entry knows which is the first and last texture in the animation. The animation update code then simply becomes to step to the next frame when necessary. There's a duration on each Atlas_Texture struct that contains the duration of the frame as set in aseprite.
 
 Here's an implementation of how to animate using the atlased animations:
 
@@ -192,7 +192,7 @@ animation_draw :: proc(anim: Animation, pos: rl.Vector2) {
 	}
 
 	texture := atlas_textures[anim.current_frame]
-	
+
 	// The texture has four offset fields: offset_top, right, bottom and left. The offsets records
 	// the distance between the pixels in the atlas and the edge of the original document in the
 	// image editing software. Since the atlas is tightly packed, any empty pixels are removed.
@@ -212,7 +212,7 @@ animation_draw :: proc(anim: Animation, pos: rl.Vector2) {
 create an animation using
 
 ```
-anim := animation_create(.Some_Animation_Name) 
+anim := animation_create(.Some_Animation_Name)
 ```
 and save that animation somewhere. Update it each frame:
 
