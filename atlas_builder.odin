@@ -1,5 +1,5 @@
 /*
-This atlas builder looks into a 'textures' folder for pngs, ase and aseprite 
+This atlas builder looks into a 'textures' folder for pngs, ase and aseprite
 files and makes an atlas from those. It outputs both `atlas.png` and
 `atlas.odin`. The odin file you compile as part of your game. It contains
 metadata about where in the atlas the textures ended up.
@@ -34,40 +34,40 @@ import stbtt "vendor:stb/truetype"
 // ---------------------
 
 // Size of atlas in NxN pixels. Note: The outputted atlas PNG is cropped to the visible pixels.
-ATLAS_SIZE :: 512
+ATLAS_SIZE :: #config(ATLAS_SIZE, 512)
 
 // Path to output final atlas PNG to
-ATLAS_PNG_OUTPUT_PATH :: "atlas.png"
+ATLAS_PNG_OUTPUT_PATH :: #config(ATLAS_PNG_OUTPUT_PATH, "atlas.png")
 
 // Path to output atlas Odin metadata file to. Compile this as part of your game to get metadata
 // about where in atlas your textures etc are.
-ATLAS_ODIN_OUTPUT_PATH :: "atlas.odin"
+ATLAS_ODIN_OUTPUT_PATH :: #config(ATLAS_ODIN_OUTPUT_PATH, "atlas.odin")
 
 // Set to false to not crop atlas after generation.
-ATLAS_CROP :: true
+ATLAS_CROP :: #config(ATLAS_CROP, true)
 
 // The NxN size of each tile (you can import tilesets by giving textures the prefix `tileset_`)
 // Note that the width and height of the tileset image must be multiple of TILE_SIZE.
-TILE_SIZE :: 8
+TILE_SIZE :: #config(TILE_SIZE, 8)
 
 // Add padding to tiles by adding a pixel border around it and copying there.
 // This helps with bleeding when doing subpixel camera movements.
-TILE_ADD_PADDING :: true
+TILE_ADD_PADDING :: #config(TILE_ADD_PADDING, true)
 
 // for package line at top of atlas Odin metadata file
-PACKAGE_NAME :: "game"
+PACKAGE_NAME :: #config(PACKAGE_NAME, "game")
 
 // The folder within which to look for textures
-TEXTURES_DIR :: "textures"
+TEXTURES_DIR :: #config(TEXTURES_DIR, "textures")
 
 // The letters to extract from the font
-LETTERS_IN_FONT :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890?!&.,_:[]-+"
+LETTERS_IN_FONT :: #config(LETTERS_IN_FONT, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890?!&.,_:[]-+")
 
 // The font to extract letters from
-FONT_FILENAME :: "font.ttf"
+FONT_FILENAME :: #config(FONT_FILENAME, "font.ttf")
 
 // The font size of letters extracted from font
-FONT_SIZE :: 32
+FONT_SIZE :: #config(FONT_SIZE, 32)
 
 
 // ---------------------
@@ -318,7 +318,7 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 			}
 		}
 	}
-	
+
 	if indexed && len(palette.entries) == 0 {
 		log.error("Document is indexed, but found no palette!")
 	}
@@ -375,7 +375,7 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 					if p == 0 {
 						continue
 					}
-					
+
 					cel_pixels[idx] = Color(palette.entries[u32(p)].color)
 				}
 			} else {
@@ -398,7 +398,7 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 				int(cv.y),
 			}
 
-			draw_image(&combined_layers, from, source, dest_pos)	
+			draw_image(&combined_layers, from, source, dest_pos)
 		}
 	}
 
@@ -449,7 +449,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 			}
 		}
 	}
-	
+
 	if indexed && len(palette.entries) == 0 {
 		log.error("Document is indexed, but found no palette!")
 	}
@@ -473,7 +473,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		log.error("No visible layers in document", filename)
 		return
 	}
-	
+
 	for f in doc.frames {
 		duration: f32 = f32(f.header.duration)/1000.0
 
@@ -502,7 +502,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 						loop_direction = tag.loop_direction,
 						repeat = tag.repeat,
 					}
-					
+
 					skip_writing_main_anim = true
 					append(animations, a)
 				}
@@ -519,10 +519,10 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 				name = animated ? fmt.tprint(base_name, frame_idx, sep = "") : base_name,
 				pixels = nil,
 			}
-      
+
 			append(textures, td)
 			frame_idx += 1
-      
+
 			continue
 		}
 
@@ -547,7 +547,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 					if p == 0 {
 						continue
 					}
-					
+
 					cel_pixels[idx] = Color(palette.entries[u32(p)].color)
 				}
 			} else {
@@ -728,7 +728,7 @@ main :: proc() {
 					append(&tilesets, t)
 				}
 			} else if is_ase {
-				load_ase_texture_data(path, &textures, &animations)	
+				load_ase_texture_data(path, &textures, &animations)
 			} else if is_png {
 				load_png_texture_data(path, &textures)
 			}
@@ -837,7 +837,7 @@ main :: proc() {
 				width = t.pixels_size.x,
 				height = t.pixels_size.y,
 			}
-			
+
 			for x in 0 ..<w {
 				for y in 0..<h {
 					tx := TILE_SIZE * x + top_left.x
@@ -941,7 +941,7 @@ main :: proc() {
 				duration = t.duration,
 			}
 
-			append(&atlas_textures, ar)	
+			append(&atlas_textures, ar)
 		case .Glyph:
 			idx := item.idx
 			g := glyphs[idx]
@@ -972,7 +972,7 @@ main :: proc() {
 				width = tileset.pixels_size.x,
 				height = tileset.pixels_size.y,
 			}
-			
+
 			source := Rect {x + top_left.x, y + top_left.y, TILE_SIZE, TILE_SIZE}
 			offset := TILE_ADD_PADDING == true ? 1 : 0
 			dest := Rect {int(rp.x) + offset, int(rp.y) + offset, source.width, source.height}
@@ -1013,7 +1013,7 @@ main :: proc() {
 						1,
 						ts,
 					}
-					
+
 					draw_image(&atlas, t_img, psource, {int(dest.x - 1), int(dest.y)})
 				}
 
@@ -1025,7 +1025,7 @@ main :: proc() {
 						1,
 						ts,
 					}
-					
+
 					draw_image(&atlas, t_img, psource, {int(dest.x + ts), int(dest.y)})
 				}
 			}
