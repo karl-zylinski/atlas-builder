@@ -248,6 +248,61 @@ asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", strings.to_ada_case(slashpath.name(slashpath.base(path))))
 }
 
+old_palette_to_entries :: proc(
+	packets:     []ase.Old_Palette_Packet,
+	color_count: int,
+	allocator:   runtime.Allocator,
+) -> []ase.Palette_Entry {
+
+	entries := make([dynamic]ase.Palette_Entry, allocator)
+	defer shrink(&entries)
+
+	for packet in packets {
+
+		idx   := int(packet.entries_to_skip)
+		count := int(packet.num_colors)
+		if count == 0 { count = color_count }
+
+		for color in packet.colors {
+
+			// Pad to idx
+			for len(entries) < idx {
+				append(&entries, ase.Palette_Entry{})
+			}
+
+			append(&entries, ase.Palette_Entry{{**color.xyz, 255}, nil})
+			idx += 1
+		}
+	}
+
+	return entries[:]
+}
+
+document_to_palette :: proc (doc: ase.Document, allocator := context.allocator) -> (palette: ase.Palette_Chunk, indexed: bool) {
+
+	indexed = doc.header.color_depth != .Indexed
+	if !indexed do return
+
+	for f in doc.frames {
+		for chunk in f.chunks {
+			#partial switch c in chunk {
+			case ase.Palette_Chunk:         palette = c
+			case ase.Old_Palette_256_Chunk: palette.entries = old_palette_to_entries(auto_cast c, 256, allocator)
+			case ase.Old_Palette_64_Chunk:  palette.entries = old_palette_to_entries(auto_cast c, 64, allocator)
+			}
+			if len(palette.entries) > 0 {
+				break
+			}
+		}
+	}
+
+	if len(palette.entries) == 0 {
+		log.error("Document is indexed, but found no palette!")
+	}
+
+	return
+}
+
 load_png_tileset :: proc(filename: string) -> (Tileset, bool) {
 	data, error := os.read_entire_file_from_path(filename, context.allocator)
 
@@ -306,22 +361,7 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 		return {}, false
 	}
 
-	indexed := doc.header.color_depth == .Indexed
-	palette: ase.Palette_Chunk
-	if indexed {
-		for f in doc.frames {
-			for c in f.chunks {
-				if p, ok := c.(ase.Palette_Chunk); ok {
-					palette = p
-					break
-				}
-			}
-		}
-	}
-
-	if indexed && len(palette.entries) == 0 {
-		log.error("Document is indexed, but found no palette!")
-	}
+	palette, indexed := document_to_palette(doc)
 
 	visible_layers := make(map[u16]bool)
 	defer delete(visible_layers)
@@ -437,22 +477,8 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	frame_idx := 0
 	animated := len(doc.frames) > 1
 	skip_writing_main_anim := false
-	indexed := doc.header.color_depth == .Indexed
-	palette: ase.Palette_Chunk
-	if indexed {
-		for f in doc.frames {
-			for c in f.chunks {
-				if p, ok := c.(ase.Palette_Chunk); ok {
-					palette = p
-					break
-				}
-			}
-		}
-	}
 
-	if indexed && len(palette.entries) == 0 {
-		log.error("Document is indexed, but found no palette!")
-	}
+	palette, indexed := document_to_palette(doc)
 
 	visible_layers := make(map[u16]bool)
 	defer delete(visible_layers)
