@@ -49,13 +49,16 @@ Atlas_Texture :: struct {
 	offset_left: f32,
 	document_size: [2]f32,
 	duration: f32,
+	// 9-slice insets for scalable UI elements. Defines the center rect.
+	// For non-9-slice textures, this defaults to the full texture rect.
+	nine_slice: Rect,
 }
 
 atlas_textures: [Texture_Name]Atlas_Texture = {
 	.None = {},
-	.Bush = { rect = {50, 0, 45, 18}, offset_top = 6, offset_right = 1, offset_bottom = 0, offset_left = 2, document_size = {48, 24}, duration = 0.100},
-	.Player0 = { rect = {230, 0, 10, 18}, offset_top = 0, offset_right = 0, offset_bottom = 0, offset_left = 0, document_size = {10, 18}, duration = 0.100},
-	.Player1 = { rect = {402, 0, 10, 17}, offset_top = 1, offset_right = 0, offset_bottom = 0, offset_left = 0, document_size = {10, 18}, duration = 0.100},
+	.Bush = { rect = {50, 0, 45, 18}, offset_top = 6, offset_right = 1, offset_bottom = 0, offset_left = 2, document_size = {48, 24}, duration = 0.100, nine_slice = {0, 0, 45, 18} },
+	.Player0 = { rect = {230, 0, 10, 18}, offset_top = 0, offset_right = 0, offset_bottom = 0, offset_left = 0, document_size = {10, 18}, duration = 0.100, nine_slice = {0, 0, 10, 18} },
+	.Player1 = { rect = {402, 0, 10, 17}, offset_top = 1, offset_right = 0, offset_bottom = 0, offset_left = 0, document_size = {10, 18}, duration = 0.100, nine_slice = {0, 0, 10, 17} },
 }
 
 Animation_Name :: enum {

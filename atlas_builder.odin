@@ -95,6 +95,7 @@ Atlas_Texture_Rect :: struct {
 	offset_left: int,
 	name: string,
 	duration: f32,
+	nine_slice: Rect,
 }
 
 Atlas_Tile_Rect :: struct {
@@ -125,6 +126,7 @@ Texture_Data :: struct {
 	duration: f32,
 	is_tile: bool,
 	tile_coord: Vec2i,
+	nine_slice: Rect,
 }
 
 Tileset :: struct {
@@ -506,23 +508,38 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	Slice_Info :: struct {
 		name:        string,
 		rect:        Rect,
-		is_document: bool,
+		is_document: bool, // when the slice is the whole document
+		nine_slice:  Rect, // 9-slice center rect, relative to slice origin
 	}
 	slices: [dynamic]Slice_Info
 	for c in doc.frames[0].chunks {
 		slice_chunk := c.(ase.Slice_Chunk) or_continue
 		if len(slice_chunk.keys) == 0 { continue }
 		key := slice_chunk.keys[0]
+
+		// Extract 9-slice info if present
+		nine_slice := Rect{0, 0, int(key.width), int(key.height)} // default to full slice
+		if center, ok := key.center.?; ok {
+			// Center is relative to slice origin
+			nine_slice = Rect{int(center.x), int(center.y), int(center.width), int(center.height)}
+		}
+
 		append(&slices, Slice_Info{
-			strings.to_ada_case(slice_chunk.name),
-			Rect{int(key.x), int(key.y), int(key.width), int(key.height)},
-			false,
+			name        = strings.to_ada_case(slice_chunk.name),
+			rect        = {int(key.x), int(key.y), int(key.width), int(key.height)},
+			is_document = false,
+			nine_slice  = nine_slice,
 		})
 	}
 
 	// If no slices, create a document-wide slice
 	if len(slices) == 0 {
-		append(&slices, Slice_Info{base_name, document_rect, true})
+		append(&slices, Slice_Info{
+			name        = base_name,
+			rect        = document_rect,
+			is_document = true,
+			nine_slice  = {0, 0, int(document_rect.width), int(document_rect.height)}, // default to full document
+		})
 	}
 
 	rect_intersect :: proc(r1, r2: Rect) -> Rect {
@@ -587,6 +604,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 					duration      = duration,
 					name          = fmt.tprint(slice_info.name, frame_idx, sep = "") if animated else slice_info.name,
 					pixels        = nil,
+					nine_slice    = slice_info.nine_slice,
 				}
 				append(textures, td)
 				frame_idx += 1
@@ -659,6 +677,7 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 				duration      = duration,
 				name          = fmt.tprint(slice_info.name, frame_idx, sep = "") if animated else slice_info.name,
 				pixels        = slice_pixels,
+				nine_slice    = is_document_slice ? Rect{0, 0, source_size.x, source_size.y} : slice_info.nine_slice,
 			}
 
 			// For document slice, set offsets to indicate position in document
@@ -1007,6 +1026,7 @@ main :: proc() {
 				offset_left = t.offset.x,
 				name = t.name,
 				duration = t.duration,
+				nine_slice = t.nine_slice,
 			}
 
 			append(&atlas_textures, ar)
@@ -1193,6 +1213,9 @@ main :: proc() {
 	fmt.fprintln(f, "\toffset_left: f32,")
 	fmt.fprintln(f, "\tdocument_size: [2]f32,")
 	fmt.fprintln(f, "\tduration: f32,")
+	fmt.fprintln(f, "\t// 9-slice insets for scalable UI elements. Defines the center rect.")
+	fmt.fprintln(f, "\t// For non-9-slice textures, this defaults to the full texture rect.")
+	fmt.fprintln(f, "\tnine_slice: Rect,")
 	fmt.fprintln(f, "}")
 	fmt.fprintln(f, "")
 
@@ -1200,7 +1223,7 @@ main :: proc() {
 	fmt.fprintln(f, "\t.None = {},")
 
 	for r in atlas_textures {
-		fmt.fprintf(f, "\t.%s = {{ rect = {{%v, %v, %v, %v}}, offset_top = %v, offset_right = %v, offset_bottom = %v, offset_left = %v, document_size = {{%v, %v}}, duration = %f}},\n", r.name, r.rect.x, r.rect.y, r.rect.width, r.rect.height, r.offset_top, r.offset_right, r.offset_bottom, r.offset_left, r.size.x, r.size.y, r.duration)
+		fmt.fprintf(f, "\t.%s = {{ rect = {{%v, %v, %v, %v}}, offset_top = %v, offset_right = %v, offset_bottom = %v, offset_left = %v, document_size = {{%v, %v}}, duration = %f, nine_slice = {{%v, %v, %v, %v}} }},\n", r.name, r.rect.x, r.rect.y, r.rect.width, r.rect.height, r.offset_top, r.offset_right, r.offset_bottom, r.offset_left, r.size.x, r.size.y, r.duration, r.nine_slice.x, r.nine_slice.y, r.nine_slice.width, r.nine_slice.height)
 	}
 
 	fmt.fprintln(f, "}\n")
