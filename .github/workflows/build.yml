@@ -17,6 +17,9 @@ jobs:
       - uses: laytan/setup-odin@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Linux build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev
       
       - uses: actions/checkout@v4
       
