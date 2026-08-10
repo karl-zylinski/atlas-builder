@@ -1311,7 +1311,7 @@ main :: proc() {
 		fmt.fprintln(f, "")
 
 		// Export palette array
-		fmt.fprintf(f, "%s_Palette :: [%d]Color{{\n", doc_name_caps, len(palette.entries))
+		fmt.fprintf(f, "%s_PALETTE :: [%d]Color{{\n", doc_name_caps, len(palette.entries))
 		for i in 0..<len(palette.entries) {
 			fmt.fprintf(f, "\t%s_COLOR_%d,\n", doc_name_caps, i)
 		}
