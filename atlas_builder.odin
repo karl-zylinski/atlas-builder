@@ -69,6 +69,10 @@ FONT_FILENAME :: #config(FONT_FILENAME, "font.ttf")
 // The font size of letters extracted from font
 FONT_SIZE :: #config(FONT_SIZE, 32)
 
+// Path to aseprite file to extract color palette from (optional)
+// If empty, no palette is exported
+PALETTE_SRC_FILE :: #config(PALETTE_SRC_FILE, "")
+
 
 // ---------------------
 // ATLAS BUILDER PROGRAM
@@ -1264,6 +1268,55 @@ main :: proc() {
 	}
 
 	fmt.fprintln(f, "}\n")
+
+	// Export palette if PALETTE_SRC_FILE is specified
+	palette_export: if PALETTE_SRC_FILE != "" {
+
+		palette_data, os_error := os.read_entire_file_from_path(PALETTE_SRC_FILE, context.allocator)
+		if os_error != os.ERROR_NONE {
+			log.errorf("Failed to load palette source file: %s", PALETTE_SRC_FILE)
+			break palette_export
+		}
+		defer delete(palette_data)
+
+		palette_doc: ase.Document
+		palette_umerr := ase.unmarshal(&palette_doc, palette_data[:])
+		if palette_umerr != nil {
+			log.error("Aseprite unmarshal error for palette file", palette_umerr)
+			break palette_export
+		}
+		defer ase.destroy_doc(&palette_doc)
+
+		palette, indexed := document_to_palette(palette_doc)
+		if !indexed {
+			log.error("Palette source file is not in indexed mode. Only indexed mode is supported for palette export.")
+			break palette_export
+		}
+		if len(palette.entries) == 0 {
+			log.error("No palette found in palette source file")
+			break palette_export
+		}
+
+		// Take const prefix from filename
+		doc_name := slashpath.name(slashpath.base(PALETTE_SRC_FILE))
+		doc_name_ada  := strings.to_ada_case(doc_name)
+		doc_name_caps := strings.to_upper(doc_name_ada)
+
+		// Export individual color constants
+		for entry, i in palette.entries {
+			color := entry.color if i != 0 else {0, 0, 0, 0} // Index 0 colors are always work as transparent, event if they aren't
+			fmt.fprintf(f, "%s_COLOR_%d :: Color{{%d, %d, %d, %d}}\n",
+			               doc_name_caps, i, **color)
+		}
+		fmt.fprintln(f, "")
+
+		// Export palette array
+		fmt.fprintf(f, "%s_Palette :: [%d]Color{{\n", doc_name_caps, len(palette.entries))
+		for i in 0..<len(palette.entries) {
+			fmt.fprintf(f, "\t%s_COLOR_%d,\n", doc_name_caps, i)
+		}
+		fmt.fprintln(f, "}\n")
+	}
 
 	for &t in tilesets {
 		w := t.pixels_size.x / TILE_SIZE
