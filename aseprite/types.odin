@@ -6,7 +6,7 @@ import "core:io"
 import "core:os"
 import "core:math/fixed"
 import "core:mem/virtual"
-import "core:compress/zlib"
+import "core:compress/deflate"
 import "core:encoding/uuid"
 
 
@@ -32,7 +32,7 @@ Unmarshal_Error :: union #shared_nil {
     Read_Error,
     ZLIB_Errors,
     runtime.Allocator_Error, 
-    zlib.Error,
+    deflate.Error,
     io.Error,
     os.Error,
 }

@@ -278,7 +278,7 @@ load_png_tileset :: proc(filename: string) -> (Tileset, bool) {
 	assert(img.height % TILE_SIZE == 0, "Tileset height is not divisbile by TILE_SIZE!")
 
 	t := Tileset {
-		pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:])),
+		pixels = slice.clone(slice.reinterpret([]Color, img.pixels[:])),
 		offset = {0, 0},
 		pixels_size = {img.width, img.height},
 		visible_pixels_size = {img.width, img.height},
@@ -356,7 +356,7 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 			#partial switch &cv in c {
 			case ase.Cel_Chunk:
 				if cv.layer_index in visible_layers {
-					if _, ok := cv.cel.(ase.Com_Image_Cel); !ok {
+					if _, ok := cv.cel.(ase.Com_Image_Cel); ok {
 						append(&cels, &cv)
 					}
 				}
@@ -654,7 +654,7 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		document_size = {img.width, img.height},
 		duration = 0,
 		name = asset_name(filename),
-		pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:])),
+		pixels = slice.clone(slice.reinterpret([]Color, img.pixels[:])),
 	}
 
 	append(textures, td)

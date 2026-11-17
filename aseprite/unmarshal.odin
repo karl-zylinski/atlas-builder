@@ -291,7 +291,7 @@ unmarshal_multi_chunks :: proc(r: io.Reader, buf: ^[dynamic]Chunk, chunks: Chunk
 
 
 unmarshal_single_chunk :: proc (
-    r: io.Reader, buf: ^[dynamic]$T, alloc := context.allocator
+    r: io.Reader, buf: ^[dynamic]$T, alloc := context.allocator,
 ) -> (err: Unmarshal_Error) where intrinsics.type_is_variant_of(Chunk, T) {
     
     context.allocator = alloc

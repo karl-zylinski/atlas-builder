@@ -4,7 +4,7 @@ import "base:intrinsics"
 import "core:io"
 import "core:log"
 import "core:bytes"
-import "core:compress/zlib"
+import "core:compress/deflate"
 
 
 read_file_header :: proc(r: io.Reader, rt: ^int) -> (h: File_Header, err: Unmarshal_Error) {
@@ -144,8 +144,8 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
             return
         }
 
-        buf: bytes.Buffer
-        defer bytes.buffer_destroy(&buf)
+        buf: [dynamic]byte
+        defer delete(buf)
 
         data := make([]byte, com_size) or_return
         defer delete(data)
@@ -153,10 +153,10 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
         read_bytes(r, data[:], rt) or_return
 
         exp_size := (color_depth / 8) * int(cel.height) * int(cel.width)
-        zlib.inflate(data[:], &buf, expected_output_size=exp_size) or_return
+        deflate.inflate_zlib(&buf, data[:], expected_output_size=exp_size) or_return
 
         cel.pixels = make([]byte, exp_size) or_return
-        copy(cel.pixels[:], buf.buf[:])
+        copy(cel.pixels[:], buf[:])
 
         chunk.cel = cel
 
@@ -171,8 +171,8 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
         cel.bitmask_diagonal = read_dword(r, rt) or_return
         read_skip(r, 10, rt) or_return
 
-        buf: bytes.Buffer
-        defer bytes.buffer_destroy(&buf)
+        buf: [dynamic]byte
+        defer delete(buf)
         // size_of(DWORD*5, WORD*6, SHORT*3, BYTE, SKIPED*15)-1
         com_size := c_size-54
         if com_size <= 0 {
@@ -184,10 +184,10 @@ read_cel :: proc(r: io.Reader, rt: ^int, color_depth: int, c_size: int, allocato
         defer delete(data)
         read_bytes(r, data[:], rt) or_return
         exp_size := color_depth / 8 * int(cel.height) * int(cel.width)
-        zlib.inflate(data[:], &buf, expected_output_size=exp_size) or_return
+        deflate.inflate_zlib(&buf, data[:], expected_output_size=exp_size) or_return
 
         br: bytes.Reader
-        bytes.reader_init(&br, buf.buf[:])
+        bytes.reader_init(&br, buf[:])
         rr, ok := io.to_reader(bytes.reader_to_stream(&br))
         if !ok { err = .Unable_Make_Reader; return }
 
@@ -398,16 +398,16 @@ read_tileset :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> 
     if .Include_Tiles_Inside_This_File in chunk.flags {
         size := int(read_dword(r, rt) or_return)
 
-        buf: bytes.Buffer
+        buf: [dynamic]byte
 
         data := make([]byte, size, allocator) or_return
         defer delete(data)
 
         read_bytes(r, data, rt) or_return
 
-        zlib.inflate_from_byte_array(data, &buf) or_return
+        deflate.inflate_zlib(&buf, data) or_return
 
-        res := len(buf.buf)-buf.off
+        res := len(buf)
         exp_size := int(chunk.width) * int(chunk.height) * int(chunk.num_of_tiles)
 
         if (res != exp_size) && (res != exp_size*2) && (res != exp_size*4) {
@@ -415,7 +415,7 @@ read_tileset :: proc(r: io.Reader, rt: ^int, allocator := context.allocator) -> 
             return chunk, Read_Error(Read_Errors.Comp_Tileset_Not_Expected_Size)
         }
 
-        chunk.compressed = (Tileset_Compressed)(buf.buf[buf.off:])
+        chunk.compressed = (Tileset_Compressed)(buf[:])
 
     }
 
