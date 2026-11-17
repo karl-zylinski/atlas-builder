@@ -1,5 +1,5 @@
 /*
-This atlas builder looks into a 'textures' folder for pngs, ase and aseprite 
+This atlas builder looks into a 'textures' folder for pngs, ase and aseprite
 files and makes an atlas from those. It outputs both `atlas.png` and
 `atlas.odin`. The odin file you compile as part of your game. It contains
 metadata about where in the atlas the textures ended up.
@@ -34,40 +34,44 @@ import stbtt "vendor:stb/truetype"
 // ---------------------
 
 // Size of atlas in NxN pixels. Note: The outputted atlas PNG is cropped to the visible pixels.
-ATLAS_SIZE :: 512
+ATLAS_SIZE :: #config(ATLAS_SIZE, 512)
 
 // Path to output final atlas PNG to
-ATLAS_PNG_OUTPUT_PATH :: "atlas.png"
+ATLAS_PNG_OUTPUT_PATH :: #config(ATLAS_PNG_OUTPUT_PATH, "atlas.png")
 
 // Path to output atlas Odin metadata file to. Compile this as part of your game to get metadata
 // about where in atlas your textures etc are.
-ATLAS_ODIN_OUTPUT_PATH :: "atlas.odin"
+ATLAS_ODIN_OUTPUT_PATH :: #config(ATLAS_ODIN_OUTPUT_PATH, "atlas.odin")
 
 // Set to false to not crop atlas after generation.
-ATLAS_CROP :: true
+ATLAS_CROP :: #config(ATLAS_CROP, true)
 
 // The NxN size of each tile (you can import tilesets by giving textures the prefix `tileset_`)
 // Note that the width and height of the tileset image must be multiple of TILE_SIZE.
-TILE_SIZE :: 8
+TILE_SIZE :: #config(TILE_SIZE, 8)
 
 // Add padding to tiles by adding a pixel border around it and copying there.
 // This helps with bleeding when doing subpixel camera movements.
-TILE_ADD_PADDING :: true
+TILE_ADD_PADDING :: #config(TILE_ADD_PADDING, true)
 
 // for package line at top of atlas Odin metadata file
-PACKAGE_NAME :: "game"
+PACKAGE_NAME :: #config(PACKAGE_NAME, "game")
 
 // The folder within which to look for textures
-TEXTURES_DIR :: "textures"
+TEXTURES_DIR :: #config(TEXTURES_DIR, "textures")
 
 // The letters to extract from the font
-LETTERS_IN_FONT :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890?!&.,_:[]-+"
+LETTERS_IN_FONT :: #config(LETTERS_IN_FONT, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890?!&.,_:[]-+")
 
 // The font to extract letters from
-FONT_FILENAME :: "font.ttf"
+FONT_FILENAME :: #config(FONT_FILENAME, "font.ttf")
 
 // The font size of letters extracted from font
-FONT_SIZE :: 32
+FONT_SIZE :: #config(FONT_SIZE, 32)
+
+// Path to aseprite file to extract color palette from (optional)
+// If empty, no palette is exported
+PALETTE_SRC_FILE :: #config(PALETTE_SRC_FILE, "")
 
 
 // ---------------------
@@ -95,6 +99,7 @@ Atlas_Texture_Rect :: struct {
 	offset_left: int,
 	name: string,
 	duration: f32,
+	nine_slice: Rect,
 }
 
 Atlas_Tile_Rect :: struct {
@@ -125,6 +130,7 @@ Texture_Data :: struct {
 	duration: f32,
 	is_tile: bool,
 	tile_coord: Vec2i,
+	nine_slice: Rect,
 }
 
 Tileset :: struct {
@@ -199,6 +205,12 @@ draw_image :: proc(to: ^Image, from: Image, source: Rect, pos: Vec2i) {
 			from_idx := sy * from.width + sx
 			to_idx := dy * to.width + dx
 
+			if from_idx < 0 || from_idx >= len(from.data) {
+				continue
+			}
+			if to_idx < 0 || to_idx >= len(to.data) {
+				continue
+			}
 
 			if to.data[to_idx].a == 0 {
 				to.data[to_idx] = from.data[from_idx]
@@ -246,6 +258,77 @@ get_image_pixel :: proc(img: Image, x: int, y: int) -> Color {
 // and turns it from player_jump.png to Player_Jump.
 asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", strings.to_ada_case(slashpath.name(slashpath.base(path))))
+}
+
+old_palette_to_entries :: proc(
+	packets:     []ase.Old_Palette_Packet,
+	color_count: int,
+	allocator:   runtime.Allocator,
+) -> []ase.Palette_Entry {
+
+	entries := make([dynamic]ase.Palette_Entry, allocator)
+	defer shrink(&entries)
+
+	for packet in packets {
+
+		idx   := int(packet.entries_to_skip)
+		count := int(packet.num_colors)
+		if count == 0 { count = color_count }
+
+		for color in packet.colors {
+
+			// Pad to idx
+			for len(entries) < idx {
+				append(&entries, ase.Palette_Entry{})
+			}
+
+			append(&entries, ase.Palette_Entry{{**color.xyz, 255}, nil})
+			idx += 1
+		}
+	}
+
+	return entries[:]
+}
+
+document_to_palette :: proc (doc: ase.Document, allocator := context.allocator) -> (palette: ase.Palette_Chunk, indexed: bool) {
+
+	indexed = doc.header.color_depth == .Indexed
+	if !indexed do return
+
+	for f in doc.frames {
+		for chunk in f.chunks {
+			#partial switch c in chunk {
+			case ase.Palette_Chunk:         palette = c
+			case ase.Old_Palette_256_Chunk: palette.entries = old_palette_to_entries(auto_cast c, 256, allocator)
+			case ase.Old_Palette_64_Chunk:  palette.entries = old_palette_to_entries(auto_cast c, 64, allocator)
+			}
+			if len(palette.entries) > 0 {
+				break
+			}
+		}
+	}
+
+	return
+}
+
+document_to_visible_layers :: proc (doc: ase.Document, allocator := context.allocator) -> (visible_layers: map[u16]bool) {
+
+	visible_layers = make(map[u16]bool, allocator)
+	layer_index: u16
+
+	for f in doc.frames {
+		for &c in f.chunks {
+			#partial switch &c in c {
+			case ase.Layer_Chunk:
+				if ase.Layer_Chunk_Flag.Visiable in c.flags {
+					visible_layers[layer_index] = true
+				}
+				layer_index += 1
+			}
+		}
+	}
+
+	return
 }
 
 load_png_tileset :: proc(filename: string) -> (Tileset, bool) {
@@ -306,37 +389,13 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 		return {}, false
 	}
 
-	indexed := doc.header.color_depth == .Indexed
-	palette: ase.Palette_Chunk
-	if indexed {
-		for f in doc.frames {
-			for c in f.chunks {
-				if p, ok := c.(ase.Palette_Chunk); ok {
-					palette = p
-					break
-				}
-			}
-		}
-	}
-	
+	palette, indexed := document_to_palette(doc)
 	if indexed && len(palette.entries) == 0 {
 		log.error("Document is indexed, but found no palette!")
 	}
 
-	visible_layers := make(map[u16]bool)
+	visible_layers := document_to_visible_layers(doc)
 	defer delete(visible_layers)
-	layer_index : u16
-	for f in doc.frames {
-		for &c in f.chunks {
-			#partial switch &c in c {
-			case ase.Layer_Chunk:
-				if ase.Layer_Chunk_Flag.Visiable in c.flags {
-					visible_layers[layer_index] = true
-				}
-				layer_index += 1
-			}
-		}
-	}
 
 	if len(visible_layers) == 0 {
 		log.error("No visible layers in document", filename)
@@ -375,7 +434,7 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 					if p == 0 {
 						continue
 					}
-					
+
 					cel_pixels[idx] = Color(palette.entries[u32(p)].color)
 				}
 			} else {
@@ -398,7 +457,7 @@ load_tileset :: proc(filename: string) -> (Tileset, bool) {
 				int(cv.y),
 			}
 
-			draw_image(&combined_layers, from, source, dest_pos)	
+			draw_image(&combined_layers, from, source, dest_pos)
 		}
 	}
 
@@ -434,193 +493,219 @@ load_ase_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	}
 
 	base_name := asset_name(filename)
-	frame_idx := 0
 	animated := len(doc.frames) > 1
-	skip_writing_main_anim := false
-	indexed := doc.header.color_depth == .Indexed
-	palette: ase.Palette_Chunk
-	if indexed {
-		for f in doc.frames {
-			for c in f.chunks {
-				if p, ok := c.(ase.Palette_Chunk); ok {
-					palette = p
-					break
-				}
-			}
-		}
-	}
-	
+
+	palette, indexed := document_to_palette(doc)
 	if indexed && len(palette.entries) == 0 {
 		log.error("Document is indexed, but found no palette!")
 	}
 
-	visible_layers := make(map[u16]bool)
+	visible_layers := document_to_visible_layers(doc)
 	defer delete(visible_layers)
-	layer_index : u16
-	for f in doc.frames {
-		for &c in f.chunks {
-			#partial switch &c in c {
-			case ase.Layer_Chunk:
-				if ase.Layer_Chunk_Flag.Visiable in c.flags {
-					visible_layers[layer_index] = true
-				}
-				layer_index += 1
-			}
-		}
-	}
 
 	if len(visible_layers) == 0 {
 		log.error("No visible layers in document", filename)
 		return
 	}
-	
-	for f in doc.frames {
-		duration: f32 = f32(f.header.duration)/1000.0
 
-		cels: [dynamic]^ase.Cel_Chunk
-		cel_min := Vec2i { max(int), max(int) }
-		cel_max := Vec2i { min(int), min(int) }
+	// Collect slices from first frame
+	Slice_Info :: struct {
+		name:        string,
+		rect:        Rect,
+		is_document: bool, // when the slice is the whole document
+		nine_slice:  Rect, // 9-slice center rect, relative to slice origin
+	}
+	slices: [dynamic]Slice_Info
+	for c in doc.frames[0].chunks {
+		slice_chunk := c.(ase.Slice_Chunk) or_continue
+		if len(slice_chunk.keys) == 0 { continue }
+		key := slice_chunk.keys[0]
 
-		for &c in f.chunks {
-			#partial switch &c in c {
-			case ase.Cel_Chunk:
-				if c.layer_index in visible_layers {
-					if cl, ok := &c.cel.(ase.Com_Image_Cel); ok {
-						cel_min.x = min(cel_min.x, int(c.x))
-						cel_min.y = min(cel_min.y, int(c.y))
-						cel_max.x = max(cel_max.x, int(c.x) + int(cl.width))
-						cel_max.y = max(cel_max.y, int(c.y) + int(cl.height))
-						append(&cels, &c)
-					}
-				}
-			case ase.Tags_Chunk:
-				for tag in c {
-					a := Animation {
-						name = fmt.tprint(base_name, strings.to_ada_case(tag.name), sep = "_"),
-						first_texture = fmt.tprint(base_name, tag.from_frame, sep = ""),
-						last_texture = fmt.tprint(base_name, tag.to_frame, sep = ""),
-						loop_direction = tag.loop_direction,
-						repeat = tag.repeat,
-					}
-					
-					skip_writing_main_anim = true
-					append(animations, a)
-				}
-			}
+		// Extract 9-slice info if present
+		nine_slice := Rect{0, 0, int(key.width), int(key.height)} // default to full slice
+		if center, ok := key.center.?; ok {
+			// Center is relative to slice origin
+			nine_slice = Rect{int(center.x), int(center.y), int(center.width), int(center.height)}
 		}
 
-		if len(cels) == 0 {
-			td := Texture_Data {
-				source_size = {0, 0},
-				source_offset = {0, 0},
-				pixels_size = {0, 0},
-				document_size = {int(doc.header.width), int(doc.header.height)},
-				duration = duration,
-				name = animated ? fmt.tprint(base_name, frame_idx, sep = "") : base_name,
-				pixels = nil,
-			}
-      
-			append(textures, td)
-			frame_idx += 1
-      
-			continue
-		}
-
-		slice.sort_by(cels[:], cel_layer_sort)
-
-		s := cel_max - cel_min
-		pixels := make([]Color, int(s.x*s.y))
-
-		combined_layers := Image {
-			data = pixels,
-			width = s.x,
-			height = s.y,
-		}
-
-		for c in cels {
-			cl := c.cel.(ase.Com_Image_Cel)
-			cel_pixels: []Color
-
-			if indexed {
-				cel_pixels = make([]Color, int(cl.width) * int(cl.height))
-				for p, idx in cl.pixels {
-					if p == 0 {
-						continue
-					}
-					
-					cel_pixels[idx] = Color(palette.entries[u32(p)].color)
-				}
-			} else {
-				cel_pixels = slice.reinterpret([]Color, cl.pixels)
-			}
-
-			source := Rect {
-				0, 0,
-				int(cl.width), int(cl.height),
-			}
-
-			from := Image {
-				data = cel_pixels,
-				width = int(cl.width),
-				height = int(cl.height),
-			}
-
-			dest_pos := Vec2i {
-				int(c.x) - cel_min.x,
-				int(c.y) - cel_min.y,
-			}
-
-			draw_image(&combined_layers, from, source, dest_pos)
-		}
-
-		cels_rect := Rect {
-			cel_min.x, cel_min.y,
-			s.x, s.y,
-		}
-
-		rect_intersect :: proc(r1, r2: Rect) -> Rect {
-			x1 := max(r1.x, r2.x)
-			y1 := max(r1.y, r2.y)
-			x2 := min(r1.x + r1.width, r2.x + r2.width)
-			y2 := min(r1.y + r1.height, r2.y + r2.height)
-			if x2 < x1 { x2 = x1 }
-			if y2 < y1 { y2 = y1 }
-			return {x1, y1, x2 - x1, y2 - y1}
-		}
-
-		source_rect := rect_intersect(cels_rect, document_rect)
-
-		td := Texture_Data {
-			source_size = { int(source_rect.width), int(source_rect.height)},
-			source_offset = { int(source_rect.x - cels_rect.x), int(source_rect.y - cels_rect.y) },
-			pixels_size = s,
-			document_size = {int(doc.header.width), int(doc.header.height)},
-			duration = duration,
-			name = animated ? fmt.tprint(base_name, frame_idx, sep = "") : base_name,
-			pixels = pixels,
-		}
-
-		if cel_min.x > 0 {
-			td.offset.x = cel_min.x
-		}
-
-		if cel_min.y > 0 {
-			td.offset.y = cel_min.y
-		}
-
-		append(textures, td)
-		frame_idx += 1
+		append(&slices, Slice_Info{
+			name        = strings.to_ada_case(slice_chunk.name),
+			rect        = {int(key.x), int(key.y), int(key.width), int(key.height)},
+			is_document = false,
+			nine_slice  = nine_slice,
+		})
 	}
 
-	if animated && frame_idx > 1 && !skip_writing_main_anim {
-		a := Animation {
-			name = base_name,
-			first_texture = fmt.tprint(base_name, 0, sep = ""),
-			last_texture = fmt.tprint(base_name, frame_idx - 1, sep = ""),
-			document_size = {int(document_rect.width), int(document_rect.height)},
+	// If no slices, create a document-wide slice
+	if len(slices) == 0 {
+		append(&slices, Slice_Info{
+			name        = base_name,
+			rect        = document_rect,
+			is_document = true,
+			nine_slice  = {0, 0, int(document_rect.width), int(document_rect.height)}, // default to full document
+		})
+	}
+
+	rect_intersect :: proc(r1, r2: Rect) -> Rect {
+		x1 := max(r1.x, r2.x)
+		y1 := max(r1.y, r2.y)
+		x2 := min(r1.x + r1.width,  r2.x + r2.width)
+		y2 := min(r1.y + r1.height, r2.y + r2.height)
+		if x2 < x1 { x2 = x1 }
+		if y2 < y1 { y2 = y1 }
+		return {x1, y1, x2 - x1, y2 - y1}
+	}
+
+	// Process tags for animations
+	skip_writing_main_anim := false
+	for c in doc.frames[0].chunks {
+		tag_chunk := c.(ase.Tags_Chunk) or_continue
+		for tag in tag_chunk {
+			a := Animation {
+				name           = fmt.tprint(base_name, strings.to_ada_case(tag.name), sep="_"),
+				first_texture  = fmt.tprint(base_name, tag.from_frame, sep=""),
+				last_texture   = fmt.tprint(base_name, tag.to_frame, sep=""),
+				loop_direction = tag.loop_direction,
+				repeat         = tag.repeat,
+			}
+			skip_writing_main_anim = true
+			append(animations, a)
+		}
+	}
+
+	// Process each slice
+	for slice_info in slices {
+		frame_idx := 0
+		is_document_slice := slice_info.is_document
+
+		for f in doc.frames {
+			duration: f32 = f32(f.header.duration)/1000.0
+
+			// Get visible cels for this frame and sort by layer
+			cels: [dynamic]^ase.Cel_Chunk
+			cel_min := Vec2i(max(int))
+			cel_max := Vec2i(min(int))
+			for &c in f.chunks {
+				#partial switch &c in c {
+				case ase.Cel_Chunk:
+					if c.layer_index not_in visible_layers do continue
+					cl := c.cel.(ase.Com_Image_Cel) or_continue
+					cel_min.x = min(cel_min.x, int(c.x))
+					cel_min.y = min(cel_min.y, int(c.y))
+					cel_max.x = max(cel_max.x, int(c.x) + int(cl.width))
+					cel_max.y = max(cel_max.y, int(c.y) + int(cl.height))
+					append(&cels, &c)
+				}
+			}
+			slice.sort_by(cels[:], cel_layer_sort)
+
+			if len(cels) == 0 {
+				td := Texture_Data {
+					source_size   = {0, 0},
+					source_offset = {0, 0},
+					pixels_size   = {0, 0},
+					document_size = {int(doc.header.width), int(doc.header.height)},
+					duration      = duration,
+					name          = fmt.tprint(slice_info.name, frame_idx, sep = "") if animated else slice_info.name,
+					pixels        = nil,
+					nine_slice    = slice_info.nine_slice,
+				}
+				append(textures, td)
+				frame_idx += 1
+				continue
+			}
+
+			target_rect: Rect
+			if is_document_slice {
+				// For document slice, tightly crop to visible content
+				target_rect = {**cel_min, **(cel_max - cel_min)}
+			} else {
+				// For actual slices, use the full slice rect
+				target_rect = slice_info.rect
+			}
+
+			// Create target-sized image
+			slice_pixels := make([]Color, int(target_rect.width * target_rect.height))
+			slice_img := Image { data = slice_pixels, width = int(target_rect.width), height = int(target_rect.height) }
+
+			for c in cels {
+				cl := c.cel.(ase.Com_Image_Cel)
+				cel_rect := Rect { int(c.x), int(c.y), int(cl.width), int(cl.height) }
+
+				// Composite only the cels that intersect with target rect
+				intersection := rect_intersect(cel_rect, target_rect)
+				if intersection.width <= 0 || intersection.height <= 0 do continue
+
+				// Get cel pixels
+				cel_pixels: []Color
+				if indexed {
+					cel_pixels = make([]Color, int(cl.width) * int(cl.height))
+					for p, idx in cl.pixels {
+						if p == 0 { continue }
+						cel_pixels[idx] = Color(palette.entries[p].color)
+					}
+				} else {
+					cel_pixels = slice.reinterpret([]Color, cl.pixels)
+				}
+
+				// Draw the intersecting portion directly into slice image
+				from := Image { data = cel_pixels, width = int(cl.width), height = int(cl.height) }
+				source := Rect {
+					intersection.x - cel_rect.x,
+					intersection.y - cel_rect.y,
+					intersection.width,
+					intersection.height,
+				}
+				dest_pos := Vec2i {
+					intersection.x - target_rect.x,
+					intersection.y - target_rect.y,
+				}
+				draw_image(&slice_img, from, source, dest_pos)
+			}
+
+			// For document slice, calculate intersection with document bounds
+			source_size   := Vec2i{int(target_rect.width), int(target_rect.height)}
+			source_offset := Vec2i{0, 0}
+			if is_document_slice {
+				cels_rect := Rect{cel_min.x, cel_min.y, (cel_max - cel_min).x, (cel_max - cel_min).y}
+				doc_source_rect := rect_intersect(cels_rect, document_rect)
+				source_size   = {int(doc_source_rect.width), int(doc_source_rect.height)}
+				source_offset = {int(doc_source_rect.x - cels_rect.x), int(doc_source_rect.y - cels_rect.y)}
+			}
+
+			td := Texture_Data {
+				source_size   = { source_size.x, source_size.y },
+				source_offset = { source_offset.x, source_offset.y },
+				pixels_size   = { int(target_rect.width), int(target_rect.height) },
+				document_size = { int(doc.header.width), int(doc.header.height) },
+				duration      = duration,
+				name          = fmt.tprint(slice_info.name, frame_idx, sep = "") if animated else slice_info.name,
+				pixels        = slice_pixels,
+				nine_slice    = is_document_slice ? Rect{0, 0, source_size.x, source_size.y} : slice_info.nine_slice,
+			}
+
+			// For document slice, set offsets to indicate position in document
+			if is_document_slice {
+				if cel_min.x > 0 {
+					td.offset.x = cel_min.x
+				}
+				if cel_min.y > 0 {
+					td.offset.y = cel_min.y
+				}
+			}
+
+			append(textures, td)
+			frame_idx += 1
 		}
 
-		append(animations, a)
+		if animated && frame_idx > 1 && !skip_writing_main_anim {
+			append(animations, Animation {
+				name          = slice_info.name,
+				first_texture = fmt.tprint(slice_info.name, 0, sep=""),
+				last_texture  = fmt.tprint(slice_info.name, frame_idx - 1, sep=""),
+				document_size = { int(doc.header.width), int(doc.header.height) },
+			})
+		}
 	}
 }
 
@@ -713,6 +798,12 @@ main :: proc() {
 		is_png := strings.has_suffix(fi.name, ".png")
 		if is_ase || is_png {
 			path := fmt.tprintf("%s/%s", TEXTURES_DIR, fi.name)
+
+			// Skip output file if it's in the input directory
+			if path == ATLAS_PNG_OUTPUT_PATH {
+				continue
+			}
+
 			if strings.has_prefix(fi.name, "tileset") {
 				t: Tileset
 				t_ok: bool
@@ -728,7 +819,7 @@ main :: proc() {
 					append(&tilesets, t)
 				}
 			} else if is_ase {
-				load_ase_texture_data(path, &textures, &animations)	
+				load_ase_texture_data(path, &textures, &animations)
 			} else if is_png {
 				load_png_texture_data(path, &textures)
 			}
@@ -837,7 +928,7 @@ main :: proc() {
 				width = t.pixels_size.x,
 				height = t.pixels_size.y,
 			}
-			
+
 			for x in 0 ..<w {
 				for y in 0..<h {
 					tx := TILE_SIZE * x + top_left.x
@@ -939,9 +1030,10 @@ main :: proc() {
 				offset_left = t.offset.x,
 				name = t.name,
 				duration = t.duration,
+				nine_slice = t.nine_slice,
 			}
 
-			append(&atlas_textures, ar)	
+			append(&atlas_textures, ar)
 		case .Glyph:
 			idx := item.idx
 			g := glyphs[idx]
@@ -972,7 +1064,7 @@ main :: proc() {
 				width = tileset.pixels_size.x,
 				height = tileset.pixels_size.y,
 			}
-			
+
 			source := Rect {x + top_left.x, y + top_left.y, TILE_SIZE, TILE_SIZE}
 			offset := TILE_ADD_PADDING == true ? 1 : 0
 			dest := Rect {int(rp.x) + offset, int(rp.y) + offset, source.width, source.height}
@@ -1013,7 +1105,7 @@ main :: proc() {
 						1,
 						ts,
 					}
-					
+
 					draw_image(&atlas, t_img, psource, {int(dest.x - 1), int(dest.y)})
 				}
 
@@ -1025,7 +1117,7 @@ main :: proc() {
 						1,
 						ts,
 					}
-					
+
 					draw_image(&atlas, t_img, psource, {int(dest.x + ts), int(dest.y)})
 				}
 			}
@@ -1125,6 +1217,9 @@ main :: proc() {
 	fmt.fprintln(f, "\toffset_left: f32,")
 	fmt.fprintln(f, "\tdocument_size: [2]f32,")
 	fmt.fprintln(f, "\tduration: f32,")
+	fmt.fprintln(f, "\t// 9-slice insets for scalable UI elements. Defines the center rect.")
+	fmt.fprintln(f, "\t// For non-9-slice textures, this defaults to the full texture rect.")
+	fmt.fprintln(f, "\tnine_slice: Rect,")
 	fmt.fprintln(f, "}")
 	fmt.fprintln(f, "")
 
@@ -1132,7 +1227,7 @@ main :: proc() {
 	fmt.fprintln(f, "\t.None = {},")
 
 	for r in atlas_textures {
-		fmt.fprintf(f, "\t.%s = {{ rect = {{%v, %v, %v, %v}}, offset_top = %v, offset_right = %v, offset_bottom = %v, offset_left = %v, document_size = {{%v, %v}}, duration = %f}},\n", r.name, r.rect.x, r.rect.y, r.rect.width, r.rect.height, r.offset_top, r.offset_right, r.offset_bottom, r.offset_left, r.size.x, r.size.y, r.duration)
+		fmt.fprintf(f, "\t.%s = {{ rect = {{%v, %v, %v, %v}}, offset_top = %v, offset_right = %v, offset_bottom = %v, offset_left = %v, document_size = {{%v, %v}}, duration = %f, nine_slice = {{%v, %v, %v, %v}} }},\n", r.name, r.rect.x, r.rect.y, r.rect.width, r.rect.height, r.offset_top, r.offset_right, r.offset_bottom, r.offset_left, r.size.x, r.size.y, r.duration, r.nine_slice.x, r.nine_slice.y, r.nine_slice.width, r.nine_slice.height)
 	}
 
 	fmt.fprintln(f, "}\n")
@@ -1173,6 +1268,55 @@ main :: proc() {
 	}
 
 	fmt.fprintln(f, "}\n")
+
+	// Export palette if PALETTE_SRC_FILE is specified
+	palette_export: if PALETTE_SRC_FILE != "" {
+
+		palette_data, os_error := os.read_entire_file_from_path(PALETTE_SRC_FILE, context.allocator)
+		if os_error != os.ERROR_NONE {
+			log.errorf("Failed to load palette source file: %s", PALETTE_SRC_FILE)
+			break palette_export
+		}
+		defer delete(palette_data)
+
+		palette_doc: ase.Document
+		palette_umerr := ase.unmarshal(&palette_doc, palette_data[:])
+		if palette_umerr != nil {
+			log.error("Aseprite unmarshal error for palette file", palette_umerr)
+			break palette_export
+		}
+		defer ase.destroy_doc(&palette_doc)
+
+		palette, indexed := document_to_palette(palette_doc)
+		if !indexed {
+			log.error("Palette source file is not in indexed mode. Only indexed mode is supported for palette export.")
+			break palette_export
+		}
+		if len(palette.entries) == 0 {
+			log.error("No palette found in palette source file")
+			break palette_export
+		}
+
+		// Take const prefix from filename
+		doc_name := slashpath.name(slashpath.base(PALETTE_SRC_FILE))
+		doc_name_ada  := strings.to_ada_case(doc_name)
+		doc_name_caps := strings.to_upper(doc_name_ada)
+
+		// Export individual color constants
+		for entry, i in palette.entries {
+			color := entry.color if i != 0 else {0, 0, 0, 0} // Index 0 colors are always work as transparent, event if they aren't
+			fmt.fprintf(f, "%s_COLOR_%d :: Color{{%d, %d, %d, %d}}\n",
+			               doc_name_caps, i, **color)
+		}
+		fmt.fprintln(f, "")
+
+		// Export palette array
+		fmt.fprintf(f, "%s_PALETTE :: [%d]Color{{\n", doc_name_caps, len(palette.entries))
+		for i in 0..<len(palette.entries) {
+			fmt.fprintf(f, "\t%s_COLOR_%d,\n", doc_name_caps, i)
+		}
+		fmt.fprintln(f, "}\n")
+	}
 
 	for &t in tilesets {
 		w := t.pixels_size.x / TILE_SIZE
